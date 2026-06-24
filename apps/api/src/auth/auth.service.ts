@@ -1,0 +1,57 @@
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
+import { UsersService } from '../users/users.service';
+import { UserDocument } from '../users/schemas/user.schema';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+    private config: ConfigService,
+  ) {}
+
+  async validateUser(email: string, password: string): Promise<UserDocument | null> {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) return null;
+    const ok = await bcrypt.compare(password, user.password);
+    return ok ? user : null;
+  }
+
+  async login(user: UserDocument) {
+    const payload = { sub: user._id.toString(), email: user.email, role: user.role };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.config.get('JWT_SECRET'),
+        expiresIn: this.config.get('JWT_EXPIRES_IN'),
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: this.config.get('JWT_REFRESH_SECRET'),
+        expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN'),
+      }),
+    ]);
+
+    await this.usersService.updateRefreshToken(user._id.toString(), refreshToken);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: { id: user._id.toString(), email: user.email, role: user.role },
+    };
+  }
+
+  async logout(userId: string): Promise<void> {
+    await this.usersService.updateRefreshToken(userId, null);
+  }
+
+  async refreshTokens(userId: string, refreshToken: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user?.refreshToken) throw new UnauthorizedException();
+    const match = await bcrypt.compare(refreshToken, user.refreshToken);
+    if (!match) throw new UnauthorizedException();
+    return this.login(user);
+  }
+}
