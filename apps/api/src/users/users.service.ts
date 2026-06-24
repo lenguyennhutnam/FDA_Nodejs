@@ -12,7 +12,9 @@ export class UsersService {
 
   async create(dto: CreateUserDto): Promise<UserDocument> {
     const hashed = await bcrypt.hash(dto.password, 12);
-    return this.userModel.create({ ...dto, password: hashed });
+    const created = await this.userModel.create({ ...dto, password: hashed });
+    // Re-fetch without sensitive fields so the response never leaks password/refreshToken
+    return this.userModel.findById(created._id).select('-password -refreshToken').exec() as Promise<UserDocument>;
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {

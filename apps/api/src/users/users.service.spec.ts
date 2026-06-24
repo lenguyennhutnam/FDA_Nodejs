@@ -58,7 +58,11 @@ describe('UsersService', () => {
 
   describe('create', () => {
     it('hashes password before saving', async () => {
+      const safeUser = { _id: mockUser._id, email: mockUser.email, role: mockUser.role };
       model.create.mockResolvedValue(mockUser as any);
+      model.findById.mockReturnValue({
+        select: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(safeUser) }),
+      } as any);
       await service.create({ email: 'admin@test.com', password: 'plaintext' });
       const callArg = (model.create as jest.Mock).mock.calls[0][0];
       expect(callArg.password).not.toBe('plaintext');
