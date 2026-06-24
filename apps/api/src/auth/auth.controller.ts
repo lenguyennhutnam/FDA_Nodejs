@@ -13,7 +13,7 @@ export class AuthController {
   @UseGuards(AuthGuard('local'))
   @Post('login')
   @HttpCode(200)
-  async login(@Req() req: any) {
+  async login(@Req() req: any, @Body() _: LoginDto) {
     return this.authService.login(req.user);
   }
 

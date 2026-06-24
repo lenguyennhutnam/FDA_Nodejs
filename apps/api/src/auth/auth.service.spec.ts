@@ -79,4 +79,28 @@ describe('AuthService', () => {
       expect(result.user).toMatchObject({ email: 'admin@test.com', role: UserRole.ADMIN });
     });
   });
+
+  describe('refreshTokens', () => {
+    it('returns new tokens when refresh token matches', async () => {
+      const rawToken = 'raw-refresh';
+      const hashed = await bcrypt.hash(rawToken, 12);
+      usersService.findById.mockResolvedValue({ ...mockUser, refreshToken: hashed } as any);
+      jwtService.signAsync.mockResolvedValue('signed-token');
+      usersService.updateRefreshToken.mockResolvedValue(undefined);
+      const result = await service.refreshTokens('user-id-1', rawToken);
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+    });
+
+    it('throws UnauthorizedException when token does not match', async () => {
+      const hashed = await bcrypt.hash('correct-token', 12);
+      usersService.findById.mockResolvedValue({ ...mockUser, refreshToken: hashed } as any);
+      await expect(service.refreshTokens('user-id-1', 'wrong-token')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('throws UnauthorizedException when user has no refresh token', async () => {
+      usersService.findById.mockResolvedValue({ ...mockUser, refreshToken: null } as any);
+      await expect(service.refreshTokens('user-id-1', 'any-token')).rejects.toThrow(UnauthorizedException);
+    });
+  });
 });

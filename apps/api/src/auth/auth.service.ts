@@ -47,6 +47,7 @@ export class AuthService {
     await this.usersService.updateRefreshToken(userId, null);
   }
 
+  /** Refresh token must be the raw value; UsersService.updateRefreshToken stores it hashed with bcrypt. */
   async refreshTokens(userId: string, refreshToken: string) {
     const user = await this.usersService.findById(userId);
     if (!user?.refreshToken) throw new UnauthorizedException();
