@@ -8,7 +8,7 @@ import { UserRole } from './schemas/user.schema';
 @Controller('users')
 @Roles(UserRole.ADMIN)
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) {}
 
   @Get()
   async findAll() {

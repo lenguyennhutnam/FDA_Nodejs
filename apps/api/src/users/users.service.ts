@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -32,14 +32,20 @@ export class UsersService {
     return this.userModel.find().select('-password -refreshToken').exec();
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<UserDocument | null> {
-    const update: Partial<User> = {};
-    if (dto.role) update.role = dto.role;
-    if (dto.password) update.password = await bcrypt.hash(dto.password, 12);
-    return this.userModel.findByIdAndUpdate(id, update, { new: true }).select('-password -refreshToken').exec();
+  async update(id: string, dto: UpdateUserDto): Promise<UserDocument> {
+    const patch: Partial<User> = {};
+    if (dto.role !== undefined) patch.role = dto.role;
+    if (dto.password) patch.password = await bcrypt.hash(dto.password, 12);
+    const updated = await this.userModel
+      .findByIdAndUpdate(id, patch, { new: true })
+      .select('-password -refreshToken')
+      .exec();
+    if (!updated) throw new NotFoundException(`User ${id} not found`);
+    return updated;
   }
 
   async remove(id: string): Promise<void> {
-    await this.userModel.findByIdAndDelete(id);
+    const deleted = await this.userModel.findByIdAndDelete(id).exec();
+    if (!deleted) throw new NotFoundException(`User ${id} not found`);
   }
 }
