@@ -6,7 +6,7 @@ Rebuild followDirectorActivities Flask → Node.js + auth/phân quyền.
 ## Stack
 - **API:** NestJS · port 3001 · `apps/api/`
 - **Web:** Next.js 16 App Router · port 3000 · `apps/web/`
-- **DB:** MongoDB + Mongoose
+- **DB:** MongoDB (Users/auth) + Mongoose. **Tạm thời:** dữ liệu nghiệp vụ (targets…) lưu file JSON trong `apps/api/data/`, sẽ chuyển sang Mongo sau khi UI ổn.
 - **Auth:** JWT access 15m + refresh 7d · Passport.js · httpOnly cookies
 - **Tương lai:** `@nestjs/schedule` (scanner), Gemini AI, Telegram bot
 
@@ -26,6 +26,7 @@ Rebuild followDirectorActivities Flask → Node.js + auth/phân quyền.
 cd apps/api && npm run start:dev        # chạy API
 cd apps/web && npm run dev              # chạy Web
 cd apps/api && npm run seed:admin       # tạo admin lần đầu
+cd apps/api && npm run seed:notifications # seed tin mẫu (dev) + target demo
 cd apps/api && npx jest --no-coverage   # tests
 ```
 
@@ -36,10 +37,12 @@ Sinh secret: `node -e "console.log(require('crypto').randomBytes(64).toString('h
 
 ## Tiến độ
 - [x] Phase 1 — NestJS + MongoDB + JWT Auth + RBAC + Next.js login
-- [ ] Phase 2 — Targets module
-- [ ] Phase 3 — Notifications module
-- [ ] Phase 4 — Scanner (Cron + Gemini AI)
-- [ ] Phase 5 — Settings + Telegram
+- [x] Phase 2 — Targets module (JSON store) + app shell sidebar + /targets CRUD UI
+- [x] Phase 3 — Notifications (JSON store) + Dashboard (thẻ tóm tắt + tin mới) + trang chi tiết (tab liên quan/không + gán nhãn + export)
+- [x] Phase 4a — Scanner Google News RSS (KHÔNG Gemini, locale vi/VN) · phân loại từ khóa · `timestamp=pubDate` (sort/hiển thị) + `scan_time=now` (lọc cửa sổ dashboard) · dedup URL + tiêu đề (Jaccard ≥0.6) · search `exact_name` · lọc `when:Nd` (scan_lookback_days=30) · lọc tên-trong-tiêu-đề (require_name_in_title=true) · quét thủ công + auto-cron · `rss-parser` + `@nestjs/schedule`
+- [x] Phase 5 — Settings (JSON store) · cài đặt quét (đấu vào scanner) · Telegram (config + gửi thử) · quản lý dữ liệu (stats + xóa theo khoảng) · danh sách báo
+- [ ] Phase 4b — Gemini AI (chưa làm — phân tích/xác minh tin)
+- [ ] Phase 5b — Telegram auto-gửi khi quét + đấu whitelist báo chính thống vào scanner (chưa wired)
 - [ ] Phase 6 — Next.js UI hoàn chỉnh
 
 ## API đã có
@@ -47,10 +50,12 @@ Sinh secret: `node -e "console.log(require('crypto').randomBytes(64).toString('h
 |---|---|
 | Auth (public) | `POST /auth/login` · `/refresh` · `/logout` · `GET /auth/me` |
 | Users (admin) | `GET/POST /users` · `PATCH/DELETE /users/:id` |
+| Targets | `GET /targets` (mọi user) · `POST` `PATCH/:id` `DELETE/:id` (admin) — JSON store |
+| Notifications | `GET /notifications` (tin mới) · `GET /notifications/summary?hours=` · `GET /notifications/detail?name=&hours=` · `POST /notifications/label` (mọi user) — JSON store |
+| Scanner | `GET /monitor/status` (mọi user) · `POST /monitor/run` `cancel` `auto` (admin) — Google News RSS, không AI · đọc settings (match mode, max, chu kỳ) |
+| Settings | `GET /settings` (mọi user, ẩn token) · `POST /settings` `/settings/telegram-test` (admin) — JSON store |
+| Data | `GET /data/stats` · `POST /data/clear` (admin) — xóa tin theo 1h/24h/7d/4w/all |
 
 ## Cần implement
-**Targets:** `GET/POST /targets` · `DELETE /targets/:name` · `GET /targets/summary` · `/target/detail` · `/target/export.json` · `POST /target/label`  
-**Notifications:** `GET /notifications`  
-**Scanner:** `POST /monitor/run` · `/monitor/cancel` · `GET /monitor/status`  
-**Settings:** `GET/POST /settings` · `POST /settings/telegram-test`  
-**Data:** `GET /data/stats` · `POST /data/clear`
+**Phase 4b — Gemini:** phân tích/xác minh tin (ai_result đầy đủ thay cho keyword_scan)  
+**Phase 5b:** Telegram auto-gửi sau quét (telegram_sent dedup) · đấu whitelist báo vào scanner

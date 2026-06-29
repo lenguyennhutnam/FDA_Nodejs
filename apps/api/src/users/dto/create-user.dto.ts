@@ -3,11 +3,11 @@ import { UserRole } from '../schemas/user.schema';
 
 export class CreateUserDto {
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
   @MinLength(8)
-  password: string;
+  password!: string;
 
   @IsEnum(UserRole)
   @IsOptional()

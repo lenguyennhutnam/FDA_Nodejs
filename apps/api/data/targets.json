@@ -1,0 +1,122 @@
+[
+  {
+    "id": "f7667f3e-d855-47d6-9c57-15f93bfc159c",
+    "name": "Phan Văn Giang",
+    "position": "Bộ trưởng Bộ Quốc phòng",
+    "bio": "",
+    "createdAt": "2026-06-26T12:16:14.386Z",
+    "updatedAt": "2026-06-26T12:16:14.386Z"
+  },
+  {
+    "id": "a037be9f-95ba-4529-bb2d-93ce0d8c694c",
+    "name": "Tô Lâm",
+    "position": "Tổng bí thư, Chủ tịch nước",
+    "bio": "",
+    "createdAt": "2026-06-26T14:54:08.195Z",
+    "updatedAt": "2026-06-26T14:54:08.195Z"
+  },
+  {
+    "id": "f358a37f-831c-4273-9a5c-c5514ab738bc",
+    "name": "Lê Minh Hưng",
+    "position": "Thủ tướng Chính phủ",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "ccd78030-e267-4c08-b641-7f924666e4a3",
+    "name": "Nguyễn Trọng Nghĩa",
+    "position": "Chủ nhiệm Tổng cục chính trị",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "6c51bb86-0c3b-4e8b-936e-f228d29d7406",
+    "name": "Trần Sỹ Thanh",
+    "position": "Chủ nhiệm Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "3bbedc93-5f2c-4cec-bd29-34a12a91dcf4",
+    "name": "Trần Tiến Hưng",
+    "position": "Phó Chủ nhiệm Thường trực Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "3af823c7-7f08-4615-861a-7b1df90a4b80",
+    "name": "Nguyễn Hồng Lĩnh",
+    "position": "Phó Chủ nhiệm Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "9120656b-4ead-401e-a337-73bde019cb04",
+    "name": "Trần Thị Hiền",
+    "position": "Phó Chủ nhiệm Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "a59e8e4d-9265-40b3-874f-8056488e1af9",
+    "name": "Đinh Hữu Thành",
+    "position": "Phó Chủ nhiệm Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "fe2ae37d-443e-4df3-b331-132ec2f7d1a4",
+    "name": "Hà Quốc Trị",
+    "position": "Phó Chủ nhiệm Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "b9ef3ea4-88b0-4d5a-9b4a-43c4e1cf565b",
+    "name": "Đoàn Anh Dũng",
+    "position": "Phó Chủ nhiệm Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "a327a9d7-455c-4f05-9294-9267196a4426",
+    "name": "Nghiêm Xuân Thành",
+    "position": "Phó Chủ nhiệm Ủy ban Kiểm tra Trung ương",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "e0b0fb6f-0f09-4bfa-846b-a1c97f903bea",
+    "name": "Nguyễn Hải Ninh",
+    "position": "Chánh Văn phòng Trung ương Đảng",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "806d9ac1-e981-4226-a590-bc49e4103df4",
+    "name": "Nguyễn Thị Thu Hà",
+    "position": "Phó Chánh Văn phòng Thường trực Văn phòng Trung ương Đảng",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  },
+  {
+    "id": "ba8ffc91-9023-4eed-8898-182ea57e39d0",
+    "name": "Đặng Khánh Toàn",
+    "position": "Phó Chánh Văn phòng Trung ương Đảng",
+    "bio": "",
+    "createdAt": "2026-06-28T00:00:00.000Z",
+    "updatedAt": "2026-06-28T00:00:00.000Z"
+  }
+]
