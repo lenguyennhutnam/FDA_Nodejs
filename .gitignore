@@ -19,6 +19,6 @@ event_intelligence/.cache/
 # claude code
 .claude
 .superpowers
-docs
+docs/*
 CLAUDE.md
 system.md
