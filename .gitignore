@@ -1,0 +1,24 @@
+# Không đẩy key API / token lên Git
+.env
+.env.*
+!.env.example
+config/config.json
+Phan_mem/config/config.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Dữ liệu runtime
+data/
+Phan_mem/data/
+event_intelligence/.cache/
+
+# claude code
+.claude
+.superpowers
+docs
+CLAUDE.md
+system.md
