@@ -2,8 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
-import { UsersService } from './users/users.service';
-import { UserRole } from './users/entities/user.entity';
+import { UsersService } from './modules/users/users.service';
+import { UserRole } from './modules/database/entities/user.entity';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

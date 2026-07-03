@@ -30,5 +30,36 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "components/ComingSoon.tsx",
+    "components/ErrorBoundary.tsx",
+    "components/NhiemVu",
+    "components/TimelineChartGantt",
+    "components/ThemeSettings",
+    "components/UserAvatar",
+    "components/ImagePreview",
+    "components/TUserGroupComponent",
+    "components/print",
+    "components/index.tsx",
+    "components/notification",
+    "components/modal",
+    "components/tBaoComThongKe",
+    "components/tCalendar",
+    "components/tChart",
+    "components/tChat",
+    "components/tCounponInput",
+    "components/tCouponCard",
+    "components/tCurrencyTextField",
+    "components/tForm2",
+    "components/tLabelFetch",
+    "components/tModalViewFile",
+    "components/tPermissionComponent",
+    "components/tRankMilitary",
+    "components/tThucDon",
+    "components/tWeekSelector",
+    "components/tYearPicker",
+    "components/tbnv",
+    "components/tTableInput"
+  ]
 }

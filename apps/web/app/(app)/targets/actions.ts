@@ -1,9 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { TargetService } from '@/lib/apis/targets';
 import { getAccessToken } from '@/lib/auth';
-import type { TargetInput } from '@/lib/targets';
+import type { TargetInput } from '@/lib/apis/targets';
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -11,7 +11,7 @@ export async function createTarget(input: TargetInput): Promise<ActionResult> {
   const token = await getAccessToken();
   if (!token) return { ok: false, error: 'Phiên đăng nhập hết hạn' };
   try {
-    await apiPost('/targets', input, token);
+    await TargetService.createTarget(input, token);
     revalidatePath('/targets');
     return { ok: true };
   } catch (e: any) {
@@ -23,7 +23,7 @@ export async function updateTarget(id: string, input: TargetInput): Promise<Acti
   const token = await getAccessToken();
   if (!token) return { ok: false, error: 'Phiên đăng nhập hết hạn' };
   try {
-    await apiPatch(`/targets/${id}`, input, token);
+    await TargetService.updateTarget(id, input, token);
     revalidatePath('/targets');
     return { ok: true };
   } catch (e: any) {
@@ -35,7 +35,7 @@ export async function deleteTarget(id: string): Promise<ActionResult> {
   const token = await getAccessToken();
   if (!token) return { ok: false, error: 'Phiên đăng nhập hết hạn' };
   try {
-    await apiDelete(`/targets/${id}`, token);
+    await TargetService.deleteTarget(id, token);
     revalidatePath('/targets');
     return { ok: true };
   } catch (e: any) {

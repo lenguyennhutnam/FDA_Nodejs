@@ -7,14 +7,15 @@ import type { CurrentUser } from '@/lib/session';
 
 type NavItem = { href: string; label: string; icon: string; disabled?: boolean };
 
-const NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/targets', label: 'Mục tiêu bảo vệ', icon: '🎯' },
-  { href: '/settings', label: 'Cài đặt', icon: '⚙️' },
-];
-
 export function Sidebar({ user }: { user: CurrentUser | null }) {
   const pathname = usePathname();
+
+  const navItems: NavItem[] = [
+    { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+    { href: '/targets', label: 'Mục tiêu bảo vệ', icon: '🎯' },
+    ...(user?.role === 'admin' ? [{ href: '/users', label: 'Quản lý tài khoản', icon: '👥' }] : []),
+    { href: '/settings', label: 'Cài đặt', icon: '⚙️' },
+  ];
 
   return (
     <aside className="w-64 shrink-0 bg-gradient-to-b from-slate-900 to-slate-800 text-gray-100 flex flex-col min-h-screen">
@@ -29,7 +30,7 @@ export function Sidebar({ user }: { user: CurrentUser | null }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {NAV.map((item) => {
+        {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
           if (item.disabled) {
             return (

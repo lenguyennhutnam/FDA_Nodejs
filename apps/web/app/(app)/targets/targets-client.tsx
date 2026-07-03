@@ -2,12 +2,31 @@
 
 import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Modal } from '@/components/Modal';
+import { Box, Button, Typography } from '@mui/material';
+import { FaEdit, FaTrash } from 'react-icons/fa';
+import { IoAddCircle } from 'react-icons/io5';
+
+import { TTable } from '@/components/tTable';
+import TSearchText from '@/components/tSearchText';
+import { TFormModal } from '@/components/tFormModal';
+import { TShowConfirm } from '@/components/tShowConfirm';
+
+import { addActionToRows } from '@/lib/utils/table-helper';
 import type { Target } from '@/lib/targets';
 import { createTarget, updateTarget, deleteTarget } from './actions';
 
-type FormState = { name: string; position: string; bio: string };
-const EMPTY: FormState = { name: '', position: '', bio: '' };
+const columns = [
+  { id: "name", label: "Họ tên", minWidth: 200 },
+  { id: "position", label: "Chức vụ", minWidth: 180 },
+  { id: "bio", label: "Tiểu sử", minWidth: 350 },
+  { id: "actions", label: "Thao tác", minWidth: 150, align: "center" as const }
+];
+
+const formColumns = [
+  { id: "name", label: "Họ tên *", type: "text", required: true },
+  { id: "position", label: "Chức vụ", type: "text" },
+  { id: "bio", label: "Tiểu sử", type: "textarea", rows: 4 }
+];
 
 export function TargetsClient({
   targets,
@@ -18,11 +37,13 @@ export function TargetsClient({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Target | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY);
-  const [error, setError] = useState('');
   const [pending, startTransition] = useTransition();
+
+  // Modals state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const [selectedTarget, setSelectedTarget] = useState<Target | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -33,181 +54,157 @@ export function TargetsClient({
     );
   }, [targets, search]);
 
-  function openAdd() {
-    setEditing(null);
-    setForm(EMPTY);
-    setError('');
-    setModalOpen(true);
-  }
+  const tableColumns = useMemo(() => {
+    if (!isAdmin) {
+      return columns.filter(c => c.id !== "actions");
+    }
+    return columns;
+  }, [isAdmin]);
 
-  function openEdit(t: Target) {
-    setEditing(t);
-    setForm({ name: t.name, position: t.position, bio: t.bio });
-    setError('');
-    setModalOpen(true);
-  }
+  const rowsRender = useMemo(() => {
+    if (!isAdmin) return filtered;
+    return addActionToRows(
+      filtered,
+      [
+        {
+          label: "Sửa",
+          icon: <FaEdit />,
+          color: "#0A8DEE",
+          onClick: (row: Target) => {
+            setSelectedTarget(row);
+            setModalOpen(true);
+          }
+        },
+        {
+          label: "Xoá",
+          icon: <FaTrash style={{ fontSize: "14px" }} />,
+          color: "#ff6666",
+          onClick: (row: Target) => {
+            setSelectedTarget(row);
+            setDeleteConfirmOpen(true);
+          }
+        }
+      ],
+      "center"
+    );
+  }, [filtered, isAdmin]);
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    if (!form.name.trim()) {
-      setError('Vui lòng nhập họ tên');
+  const openAdd = () => {
+    setSelectedTarget(null);
+    setModalOpen(true);
+  };
+
+  const handleSubmit = (values: Record<string, any>) => {
+    const { name, position, bio } = values;
+    if (!name?.trim()) {
+      alert('Vui lòng nhập họ tên');
       return;
     }
+
     startTransition(async () => {
-      const res = editing
-        ? await updateTarget(editing.id, form)
-        : await createTarget(form);
+      const formPayload = { name, position: position || '', bio: bio || '' };
+      const res = selectedTarget
+        ? await updateTarget(selectedTarget.id, formPayload)
+        : await createTarget(formPayload);
       if (res.ok) {
         setModalOpen(false);
         router.refresh();
       } else {
-        setError(res.error);
+        alert(res.error || 'Đã xảy ra lỗi khi lưu thông tin');
       }
     });
-  }
+  };
 
-  function remove(t: Target) {
-    if (!confirm(`Xóa mục tiêu "${t.name}"?`)) return;
+  const handleDelete = () => {
+    if (!selectedTarget) return;
     startTransition(async () => {
-      const res = await deleteTarget(t.id);
-      if (!res.ok) alert(res.error);
-      else router.refresh();
+      const res = await deleteTarget(selectedTarget.id);
+      if (!res.ok) {
+        alert(res.error || 'Đã xảy ra lỗi khi xóa');
+      } else {
+        setDeleteConfirmOpen(false);
+        router.refresh();
+      }
     });
-  }
+  };
 
   return (
-    <main className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mục tiêu bảo vệ</h1>
-          <p className="text-gray-500 mt-1 text-sm">{targets.length} mục tiêu</p>
-        </div>
+    <Box sx={{ p: 4, width: '100%' }} suppressHydrationWarning>
+      {/* Header section */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: '#1a1a1a', fontFamily: 'Be Vietnam Pro' }}>
+            Mục tiêu bảo vệ
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#666', mt: 0.5, fontFamily: 'Be Vietnam Pro' }}>
+            Tổng số: {targets.length} mục tiêu
+          </Typography>
+        </Box>
         {isAdmin && (
-          <button
+          <Button
+            variant="contained"
+            startIcon={<IoAddCircle size={18} />}
             onClick={openAdd}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+            sx={{
+              backgroundColor: '#1976d2',
+              textTransform: 'none',
+              borderRadius: '8px',
+              fontFamily: 'Be Vietnam Pro',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(25, 118, 210, 0.25)',
+              '&:hover': {
+                backgroundColor: '#1565c0',
+              }
+            }}
           >
-            + Thêm mục tiêu
-          </button>
+            Thêm mục tiêu
+          </Button>
         )}
-      </div>
+      </Box>
 
-      <input
-        type="search"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Tìm theo tên hoặc chức vụ…"
-        className="w-full max-w-sm mb-4 border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
+      {/* Filter toolbar */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2 }}>
+        <TSearchText
+          placeholder="Tìm theo tên hoặc chức vụ..."
+          onSearch={setSearch}
+          sx={{ width: '320px' }}
+        />
+      </Box>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 text-left">
-            <tr>
-              <th className="px-4 py-3 font-medium">Họ tên</th>
-              <th className="px-4 py-3 font-medium">Chức vụ</th>
-              <th className="px-4 py-3 font-medium">Tiểu sử</th>
-              {isAdmin && <th className="px-4 py-3 font-medium w-32">Thao tác</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filtered.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={isAdmin ? 4 : 3}
-                  className="px-4 py-8 text-center text-gray-400"
-                >
-                  {targets.length === 0
-                    ? 'Chưa có mục tiêu nào. Bấm "Thêm mục tiêu" để bắt đầu.'
-                    : 'Không tìm thấy mục tiêu khớp.'}
-                </td>
-              </tr>
-            ) : (
-              filtered.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{t.name}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.position || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500 max-w-xs truncate">
-                    {t.bio || '—'}
-                  </td>
-                  {isAdmin && (
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openEdit(t)}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          onClick={() => remove(t)}
-                          className="text-red-600 hover:underline"
-                          disabled={pending}
-                        >
-                          Xóa
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Main Grid table */}
+      <Box sx={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)', overflow: 'hidden' }}>
+        <TTable
+          columns={tableColumns}
+          rows={rowsRender}
+          loading={pending}
+          showIndex
+        />
+      </Box>
 
-      <Modal
+      {/* Add / Edit Form Modal */}
+      <TFormModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? 'Sửa mục tiêu' : 'Thêm mục tiêu'}
-      >
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-900">Họ tên *</label>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-900">Chức vụ</label>
-            <input
-              value={form.position}
-              onChange={(e) => setForm({ ...form, position: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-900">Tiểu sử</label>
-            <textarea
-              value={form.bio}
-              onChange={(e) => setForm({ ...form, bio: e.target.value })}
-              rows={4}
-              className="w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="px-4 py-2 rounded-lg text-sm border text-gray-700 hover:bg-gray-50"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {pending ? 'Đang lưu…' : 'Lưu'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-    </main>
+        columns={formColumns}
+        initialValues={selectedTarget ? {
+          name: selectedTarget.name,
+          position: selectedTarget.position || '',
+          bio: selectedTarget.bio || ''
+        } : {}}
+        onSubmit={handleSubmit}
+        customTitle={selectedTarget ? 'Cập nhật thông tin mục tiêu' : 'Thêm mục tiêu bảo vệ mới'}
+        loading={pending}
+      />
+
+      {/* Delete confirmation dialogue */}
+      <TShowConfirm
+        visible={deleteConfirmOpen}
+        title="Xác nhận xóa mục tiêu"
+        message={`Bạn có chắc chắn muốn xóa mục tiêu "${selectedTarget?.name}"?`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onClose={() => setDeleteConfirmOpen(false)}
+      />
+    </Box>
   );
 }

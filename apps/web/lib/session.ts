@@ -1,4 +1,4 @@
-import { apiGet } from './api';
+import { AuthService } from './apis/auth';
 import { getAccessToken } from './auth';
 
 export type CurrentUser = { id: string; email: string; role: 'admin' | 'viewer' };
@@ -8,7 +8,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const token = await getAccessToken();
   if (!token) return null;
   try {
-    return await apiGet<CurrentUser>('/auth/me', token);
+    return await AuthService.me(token);
   } catch {
     return null;
   }

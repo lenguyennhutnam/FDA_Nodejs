@@ -1,0 +1,2 @@
+export { TroopStatusChip } from './TroopStatusChip';
+

@@ -1,11 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
-import { TargetsService } from '../targets/targets.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { TargetsService } from '../modules/targets/targets.service';
+import { NotificationsService } from '../modules/notifications/notifications.service';
 import {
   NotificationRecord,
-  NotificationsStore,
-} from '../notifications/interfaces/notification.interface';
+} from '../modules/notifications/interfaces/notification.interface';
 
 /** Dev seed: tạo vài mục tiêu demo + tin mẫu để xem dashboard/chi tiết. */
 

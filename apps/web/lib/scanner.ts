@@ -1,22 +1,8 @@
-import { apiGet } from './api';
-import { getAccessToken } from './auth';
+import { ScannerService } from './apis/scanner';
+export type { ScanStatus } from './apis/scanner';
 
-export type ScanStatus = {
-  isScanning: boolean;
-  lastRun: string | null;
-  lastAdded: number;
-  lastError: string | null;
-  currentTarget: string | null;
-  autoScanEnabled: boolean;
-};
-
-export async function fetchScanStatus(): Promise<ScanStatus | null> {
-  const token = await getAccessToken();
+export async function fetchScanStatus() {
+  const token = await import('./auth').then(m => m.getAccessToken());
   if (!token) return null;
-  try {
-    const res = await apiGet<{ status: ScanStatus }>('/monitor/status', token);
-    return res.status;
-  } catch {
-    return null;
-  }
+  return ScannerService.fetchScanStatus(token);
 }

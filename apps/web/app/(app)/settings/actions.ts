@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { apiPost } from '@/lib/api';
+import { SettingService } from '@/lib/apis/settings';
+import { UserService } from '@/lib/apis/users';
 import { getAccessToken } from '@/lib/auth';
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
@@ -10,7 +11,7 @@ export async function saveSettings(patch: Record<string, unknown>): Promise<Save
   const token = await getAccessToken();
   if (!token) return { ok: false, error: 'Phiên đăng nhập hết hạn' };
   try {
-    await apiPost('/settings', patch, token);
+    await SettingService.saveSettings(patch, token);
     revalidatePath('/settings');
     return { ok: true };
   } catch (e: any) {
@@ -25,7 +26,7 @@ export async function testTelegram(
   const token = await getAccessToken();
   if (!token) return { ok: false, error: 'Phiên đăng nhập hết hạn' };
   try {
-    await apiPost('/settings/telegram-test', { bot_token: botToken, chat_id: chatId }, token);
+    await SettingService.testTelegram(botToken, chatId, token);
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e.message ?? 'Gửi thử thất bại' };
@@ -36,11 +37,25 @@ export async function clearData(range: string): Promise<{ ok: true; removed: num
   const token = await getAccessToken();
   if (!token) return { ok: false, error: 'Phiên đăng nhập hết hạn' };
   try {
-    const res = await apiPost<{ removed: number }>('/data/clear', { range }, token);
+    const res = await SettingService.clearData(range, token);
     revalidatePath('/settings');
     revalidatePath('/dashboard');
     return { ok: true, removed: res.removed };
   } catch (e: any) {
     return { ok: false, error: e.message ?? 'Lỗi khi xóa dữ liệu' };
+  }
+}
+
+export async function updatePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<SaveResult> {
+  const token = await getAccessToken();
+  if (!token) return { ok: false, error: 'Phiên đăng nhập hết hạn' };
+  try {
+    await UserService.changePasswordApi({ currentPassword, newPassword }, token);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e.message ?? 'Đổi mật khẩu thất bại' };
   }
 }

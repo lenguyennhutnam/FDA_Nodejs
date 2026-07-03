@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
-import { UsersService } from '../users/users.service';
-import { UserRole } from '../users/schemas/user.schema';
+import { UsersService } from '../modules/users/users.service';
+import { UserRole } from '../modules/database/entities/user.entity';
 
 async function seed() {
   const app = await NestFactory.createApplicationContext(AppModule);
