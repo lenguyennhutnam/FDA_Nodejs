@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
+import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { envValidationSchema } from './config/env.validation';
 import { UsersModule } from './users/users.module';
@@ -17,10 +17,11 @@ import { RolesGuard } from './auth/guards/roles.guard';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validationSchema: envValidationSchema }),
     ScheduleModule.forRoot(),
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({ uri: config.get<string>('MONGODB_URI') }),
-      inject: [ConfigService],
+    TypeOrmModule.forRoot({
+      type: 'better-sqlite3',
+      database: 'data/fda.db',
+      autoLoadEntities: true,
+      synchronize: true,
     }),
     UsersModule,
     AuthModule,

@@ -93,23 +93,19 @@ async function seed() {
     }
   }
 
-  const store: NotificationsStore = {
-    channel_hoatdong: [
-      activity('Tô Lâm', 'Tổng Bí thư Tô Lâm chủ trì họp Bộ Chính trị', 2, 'vnexpress.net', 'Chủ trì cuộc họp về phát triển kinh tế - xã hội.'),
-      activity('Tô Lâm', 'Tổng Bí thư tiếp đoàn đại biểu quốc tế', 8, 'tuoitre.vn', 'Tiếp đoàn đại biểu cấp cao.'),
-      activity('Tô Lâm', 'Bài viết của Tổng Bí thư về báo chí cách mạng', 20, 'qdnd.vn', 'Bài viết nhân ngày Báo chí cách mạng Việt Nam.'),
-      activity('Phạm Minh Chính', 'Thủ tướng kiểm tra dự án cao tốc Bắc - Nam', 3, 'vnexpress.net', 'Kiểm tra tiến độ thi công cao tốc.'),
-      activity('Phạm Minh Chính', 'Thủ tướng dự hội nghị xúc tiến đầu tư', 12, 'thanhnien.vn', 'Phát biểu tại hội nghị xúc tiến đầu tư.'),
-      activity('Phan Văn Giang', 'Bộ trưởng Quốc phòng thăm đơn vị biên phòng', 30, 'qdnd.vn', 'Thăm và làm việc với lực lượng biên phòng.'),
-    ],
-    channel_biendong: [
-      roleChange('Phạm Minh Chính', 'Kiện toàn nhân sự Chính phủ nhiệm kỳ mới', 5, 'vnexpress.net', 'Phó Thủ tướng', 'Thủ tướng Chính phủ'),
-    ],
-  };
+  const records: NotificationRecord[] = [
+    activity('Tô Lâm', 'Tổng Bí thư Tô Lâm chủ trì họp Bộ Chính trị', 2, 'vnexpress.net', 'Chủ trì cuộc họp về phát triển kinh tế - xã hội.'),
+    activity('Tô Lâm', 'Tổng Bí thư tiếp đoàn đại biểu quốc tế', 8, 'tuoitre.vn', 'Tiếp đoàn đại biểu cấp cao.'),
+    activity('Tô Lâm', 'Bài viết của Tổng Bí thư về báo chí cách mạng', 20, 'qdnd.vn', 'Bài viết nhân ngày Báo chí cách mạng Việt Nam.'),
+    activity('Phạm Minh Chính', 'Thủ tướng kiểm tra dự án cao tốc Bắc - Nam', 3, 'vnexpress.net', 'Kiểm tra tiến độ thi công cao tốc.'),
+    activity('Phạm Minh Chính', 'Thủ tướng dự hội nghị xúc tiến đầu tư', 12, 'thanhnien.vn', 'Phát biểu tại hội nghị xúc tiến đầu tư.'),
+    activity('Phan Văn Giang', 'Bộ trưởng Quốc phòng thăm đơn vị biên phòng', 30, 'qdnd.vn', 'Thăm và làm việc với lực lượng biên phòng.'),
+    roleChange('Phạm Minh Chính', 'Kiện toàn nhân sự Chính phủ nhiệm kỳ mới', 5, 'vnexpress.net', 'Phó Thủ tướng', 'Thủ tướng Chính phủ'),
+  ];
 
-  await notifications.saveAll(store);
+  await notifications.addRecords(records);
   console.log(
-    `Notifications seeded: ${store.channel_hoatdong.length} hoạt động + ${store.channel_biendong.length} đổi chức vụ`,
+    `Notifications seeded: ${records.length} bản ghi`,
   );
 
   await app.close();

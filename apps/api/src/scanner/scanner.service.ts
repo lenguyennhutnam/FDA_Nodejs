@@ -1,58 +1,67 @@
-import { Injectable, Logger, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, ConflictException, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import Parser = require('rss-parser');
 import { TargetsService } from '../targets/targets.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SettingsService } from '../settings/settings.service';
 import { SearchMatchMode } from '../settings/interfaces/settings.interface';
 import { NotificationRecord } from '../notifications/interfaces/notification.interface';
+import { TelegramService } from '../settings/telegram.service';
+import { ScanStatus as ScanStatusEntity } from './entities/scan-status.entity';
 
 /** Từ khóa nhận diện tin thay đổi chức vụ (không cần AI). */
 const ROLE_CHANGE_RE =
   /bổ\s*nhiệm|miễn\s*nhiệm|bãi\s*nhiệm|điều\s*động|luân\s*chuyển|giữ\s*chức|phân\s*công|tân\s*nhiệm|được\s*giao\s*giữ|thôi\s*giữ|cách\s*chức/i;
 
-export interface ScanStatus {
-  isScanning: boolean;
-  lastRun: string | null;
-  lastAdded: number;
-  lastError: string | null;
-  currentTarget: string | null;
-  autoScanEnabled: boolean;
-}
-
 @Injectable()
-export class ScannerService {
+export class ScannerService implements OnModuleInit {
   private readonly logger = new Logger(ScannerService.name);
   private readonly parser = new Parser({ timeout: 15000 });
-
-  // Trạng thái runtime (autoScanEnabled lấy từ settings, không lưu ở đây)
-  private status = {
-    isScanning: false,
-    lastRun: null as string | null,
-    lastAdded: 0,
-    lastError: null as string | null,
-    currentTarget: null as string | null,
-  };
   private cancelRequested = false;
 
   constructor(
+    @InjectRepository(ScanStatusEntity)
+    private readonly scanStatusRepository: Repository<ScanStatusEntity>,
     private readonly targetsService: TargetsService,
     private readonly notificationsService: NotificationsService,
     private readonly settingsService: SettingsService,
+    private readonly telegramService: TelegramService,
   ) {}
 
-  async getStatus(): Promise<ScanStatus> {
-    const s = await this.settingsService.get();
-    return { ...this.status, autoScanEnabled: s.auto_scan_enabled };
+  async onModuleInit() {
+    await this.getStatus();
   }
 
-  async setAutoScan(enabled: boolean): Promise<ScanStatus> {
+  async getStatus(): Promise<ScanStatusEntity & { autoScanEnabled: boolean }> {
+    let s = await this.scanStatusRepository.findOne({ where: { id: 1 } });
+    if (!s) {
+      s = this.scanStatusRepository.create({
+        id: 1,
+        isScanning: false,
+        lastRun: null,
+        lastAdded: 0,
+        lastError: null,
+        currentTarget: null,
+      });
+      s = await this.scanStatusRepository.save(s);
+    }
+    const settings = await this.settingsService.get();
+    return { ...s, autoScanEnabled: settings.auto_scan_enabled };
+  }
+
+  async setAutoScan(enabled: boolean): Promise<ScanStatusEntity & { autoScanEnabled: boolean }> {
     await this.settingsService.update({ auto_scan_enabled: enabled });
+    if (enabled) {
+      this.autoScanTick().catch((err) => {
+        this.logger.warn(`Lỗi khi kích hoạt quét tự động: ${err.message}`);
+      });
+    }
     return this.getStatus();
   }
 
   requestCancel(): boolean {
-    if (!this.status.isScanning) return false;
     this.cancelRequested = true;
     return true;
   }
@@ -60,12 +69,15 @@ export class ScannerService {
   /** Quét nền: tick mỗi phút, chạy khi bật auto-scan và đã đủ chu kỳ. */
   @Cron(CronExpression.EVERY_MINUTE)
   async autoScanTick(): Promise<void> {
-    if (this.status.isScanning) return;
-    const s = await this.settingsService.get();
-    if (!s.auto_scan_enabled) return;
-    const intervalMs = s.scan_interval_minutes * 60 * 1000;
-    const lastMs = this.status.lastRun ? Date.parse(this.status.lastRun) : 0;
+    const status = await this.getStatus();
+    if (status.isScanning) return;
+    if (!status.autoScanEnabled) return;
+
+    const settings = await this.settingsService.get();
+    const intervalMs = settings.scan_interval_minutes * 60 * 1000;
+    const lastMs = status.lastRun ? Date.parse(status.lastRun) : 0;
     if (lastMs && Date.now() - lastMs < intervalMs) return;
+
     this.logger.log('Auto-scan: tới chu kỳ → quét');
     try {
       await this.run();
@@ -76,12 +88,16 @@ export class ScannerService {
 
   /** Quét tất cả mục tiêu (hoặc 1 mục tiêu nếu truyền tên). Trả về số tin mới thêm. */
   async run(targetName?: string): Promise<{ added: number; scanned: number }> {
-    if (this.status.isScanning) {
+    const status = await this.getStatus();
+    if (status.isScanning) {
       throw new ConflictException('Đang quét — vui lòng đợi lượt hiện tại xong');
     }
 
-    this.status.isScanning = true;
-    this.status.lastError = null;
+    await this.scanStatusRepository.update(1, {
+      isScanning: true,
+      lastError: null,
+      currentTarget: targetName || 'Tất cả mục tiêu',
+    });
     this.cancelRequested = false;
 
     let added = 0;
@@ -94,7 +110,7 @@ export class ScannerService {
       const collected: NotificationRecord[] = [];
       for (const t of targets) {
         if (this.cancelRequested) break;
-        this.status.currentTarget = t.name;
+        await this.scanStatusRepository.update(1, { currentTarget: t.name });
         try {
           const recs = await this.scanTarget(
             t.name,
@@ -112,18 +128,49 @@ export class ScannerService {
         scanned++;
       }
 
-      added = await this.notificationsService.addRecords(collected);
-      this.status.lastAdded = added;
-      this.status.lastRun = new Date().toISOString();
+      const addedRecords = await this.notificationsService.addRecordsAndGetAdded(collected);
+      added = addedRecords.length;
+
+      await this.scanStatusRepository.update(1, {
+        isScanning: false,
+        lastRun: new Date().toISOString(),
+        lastAdded: added,
+        currentTarget: null,
+      });
+
       this.logger.log(`Quét xong: ${scanned} mục tiêu, +${added} tin mới`);
+
+      if (settings.telegram?.enabled) {
+        const botToken = settings.telegram.bot_token;
+        const chatId = settings.telegram.chat_id;
+        if (botToken && chatId) {
+          let notifyRecords = addedRecords;
+          if (settings.telegram.notify_role_change_only) {
+            notifyRecords = addedRecords.filter((r) => r.news_kind === 'biendong');
+          }
+
+          if (notifyRecords.length > 0) {
+            const text = this.formatTelegramMessage(notifyRecords);
+            await this.telegramService.sendMessage(botToken, chatId, text).catch((err) => {
+              this.logger.warn(`Không gửi được thông báo Telegram: ${err.message}`);
+            });
+          } else if (settings.telegram.notify_on_empty) {
+            const text = `🔔 <b>FDA — BÁO CÁO KẾT QUẢ QUÉT TIN</b>\n\nKhông có tin mới nào được tìm thấy.`;
+            await this.telegramService.sendMessage(botToken, chatId, text).catch((err) => {
+              this.logger.warn(`Không gửi được thông báo Telegram: ${err.message}`);
+            });
+          }
+        }
+      }
     } catch (e: any) {
-      this.status.lastError = e.message ?? String(e);
-      this.logger.error(`Quét thất bại: ${this.status.lastError}`);
+      const errorMsg = e.message ?? String(e);
+      await this.scanStatusRepository.update(1, {
+        isScanning: false,
+        lastError: errorMsg,
+        currentTarget: null,
+      });
+      this.logger.error(`Quét thất bại: ${errorMsg}`);
       throw e;
-    } finally {
-      this.status.isScanning = false;
-      this.status.currentTarget = null;
-      this.cancelRequested = false;
     }
 
     return { added, scanned };
@@ -141,7 +188,6 @@ export class ScannerService {
   ): Promise<NotificationRecord[]> {
     let query = this.composeQuery(name, position, matchMode);
     if (!query) return [];
-    // Giới hạn tin trong N ngày gần nhất để loại bài cũ (Google News `when:Nd`)
     if (lookbackDays > 0) query += ` when:${lookbackDays}d`;
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(
       query,
@@ -156,15 +202,12 @@ export class ScannerService {
       const title = (item.title ?? '').trim();
       if (!link.startsWith('http') || !title) continue;
 
-      // Loại bài chỉ khớp tên ở thân bài (tiêu đề không có tên) nếu bật tùy chọn
       if (requireNameInTitle && !this.titleHasName(title, name)) continue;
 
       const press = this.extractPress(title, item);
       const text = `${title} ${item.contentSnippet ?? ''}`;
       const isChange = ROLE_CHANGE_RE.test(text);
 
-      // timestamp = NGÀY ĐĂNG THẬT của bài (pubDate), không phải lúc quét —
-      // để bộ lọc cửa sổ thời gian loại đúng bài cũ.
       const pubMs = item.pubDate ? Date.parse(item.pubDate) : NaN;
       const ts = Number.isFinite(pubMs) ? new Date(pubMs).toISOString() : now;
 
@@ -195,7 +238,6 @@ export class ScannerService {
     return out;
   }
 
-  /** Tiêu đề có chứa tên mục tiêu không (bỏ dấu, không phân biệt hoa thường). */
   private titleHasName(title: string, name: string): boolean {
     const norm = (s: string) =>
       s
@@ -207,7 +249,6 @@ export class ScannerService {
     return norm(title).includes(norm(name.trim()));
   }
 
-  /** Tạo truy vấn Google News theo chế độ tìm kiếm. */
   private composeQuery(name: string, position: string, mode: SearchMatchMode): string {
     const nm = name.trim();
     const pos = position.trim();
@@ -222,15 +263,91 @@ export class ScannerService {
       case 'exact':
         return pos ? `${q(nm)} ${q(pos)}` : q(nm);
       default:
-        return nm; // related
+        return nm;
     }
   }
 
-  /** Lấy tên báo từ tiêu đề Google News ("Tiêu đề - Tên báo") hoặc field source. */
   private extractPress(title: string, item: Record<string, any>): string {
     const src = item?.source?.title ?? item?.creator ?? '';
     if (src) return String(src).trim();
     const idx = title.lastIndexOf(' - ');
     return idx > 0 ? title.slice(idx + 3).trim() : '';
+  }
+
+  private formatTimestamp(tsString: string): string {
+    try {
+      const d = new Date(tsString);
+      const localTime = new Date(d.getTime() + 7 * 60 * 60 * 1000); // UTC+7 Vietnam
+      const dd = String(localTime.getUTCDate()).padStart(2, '0');
+      const mm = String(localTime.getUTCMonth() + 1).padStart(2, '0');
+      const yyyy = localTime.getUTCFullYear();
+      const hh = String(localTime.getUTCHours()).padStart(2, '0');
+      const min = String(localTime.getUTCMinutes()).padStart(2, '0');
+      return `${hh}:${min} ${dd}/${mm}/${yyyy}`;
+    } catch {
+      return '';
+    }
+  }
+
+  private formatTelegramMessage(records: NotificationRecord[]): string {
+    const header = `🔔 <b>FDA — PHÁT HIỆN TIN MỚI</b>\n\nTìm thấy <b>${records.length}</b> tin mới:\n\n`;
+    
+    // Group by target name
+    const grouped = new Map<string, NotificationRecord[]>();
+    for (const r of records) {
+      const name = r.target_name.trim();
+      const list = grouped.get(name) ?? [];
+      list.push(r);
+      grouped.set(name, list);
+    }
+
+    let body = '';
+    let leaderIdx = 1;
+    let limitReached = false;
+
+    for (const [name, list] of grouped.entries()) {
+      if (limitReached) break;
+
+      // Sort list by timestamp desc (newest to oldest)
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      const position = list[0].target_position ? ` - ${list[0].target_position}` : '';
+      const leaderSectionHeader = `${leaderIdx}. <b>${name}${position}</b>\n`;
+
+      if (header.length + body.length + leaderSectionHeader.length + 30 > 4000) {
+        body += `... và một số tin khác.`;
+        limitReached = true;
+        break;
+      }
+      
+      body += leaderSectionHeader;
+      
+      let articleIdx = 1;
+      for (const r of list) {
+        const timeStr = this.formatTimestamp(r.timestamp);
+        const press = r.press_name || 'Báo điện tử';
+        
+        let articleLine = '';
+        if (r.news_kind === 'biendong') {
+          articleLine = `<b>- Bài viết ${articleIdx}: <a href="${r.url}">${r.title}</a> --- [${timeStr}] --- [${press}]</b>\n`;
+        } else {
+          articleLine = `- Bài viết ${articleIdx}: <a href="${r.url}">${r.title}</a> --- [${timeStr}] --- [${press}]\n`;
+        }
+
+        if (header.length + body.length + articleLine.length + 30 > 4000) {
+          body += `... và một số tin khác.`;
+          limitReached = true;
+          break;
+        }
+
+        body += articleLine;
+        articleIdx++;
+      }
+
+      body += '\n';
+      leaderIdx++;
+    }
+
+    return (header + body).trim();
   }
 }

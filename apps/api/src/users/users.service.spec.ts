@@ -1,40 +1,44 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
-import { User, UserRole } from './schemas/user.schema';
+import { User, UserRole } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 
 const mockUser = {
-  _id: 'some-id',
+  id: 1,
   email: 'admin@test.com',
   password: 'hashed',
   role: UserRole.ADMIN,
   refreshToken: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 describe('UsersService', () => {
   let service: UsersService;
-  let model: jest.Mocked<Model<User>>;
+  let repo: jest.Mocked<Repository<User>>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         {
-          provide: getModelToken(User.name),
+          provide: getRepositoryToken(User),
           useValue: {
-            create: jest.fn(),
+            create: jest.fn().mockImplementation((dto) => ({ ...mockUser, ...dto })),
+            save: jest.fn().mockResolvedValue(mockUser),
             findOne: jest.fn(),
-            findById: jest.fn(),
-            findByIdAndUpdate: jest.fn(),
+            update: jest.fn(),
+            find: jest.fn(),
+            delete: jest.fn(),
           },
         },
       ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
-    model = module.get(getModelToken(User.name));
+    repo = module.get(getRepositoryToken(User));
   });
 
   it('should be defined', () => {
@@ -43,14 +47,14 @@ describe('UsersService', () => {
 
   describe('findByEmail', () => {
     it('returns user when found', async () => {
-      model.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(mockUser) } as any);
+      repo.findOne.mockResolvedValue(mockUser as any);
       const result = await service.findByEmail('admin@test.com');
       expect(result).toEqual(mockUser);
-      expect(model.findOne).toHaveBeenCalledWith({ email: 'admin@test.com' });
+      expect(repo.findOne).toHaveBeenCalledWith({ where: { email: 'admin@test.com' } });
     });
 
     it('returns null when not found', async () => {
-      model.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) } as any);
+      repo.findOne.mockResolvedValue(null);
       const result = await service.findByEmail('nobody@test.com');
       expect(result).toBeNull();
     });
@@ -58,49 +62,43 @@ describe('UsersService', () => {
 
   describe('create', () => {
     it('hashes password before saving', async () => {
-      const safeUser = { _id: mockUser._id, email: mockUser.email, role: mockUser.role };
-      model.create.mockResolvedValue(mockUser as any);
-      model.findById.mockReturnValue({
-        select: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(safeUser) }),
-      } as any);
+      repo.save.mockImplementation(async (user: any) => user);
       await service.create({ email: 'admin@test.com', password: 'plaintext' });
-      const callArg = (model.create as jest.Mock).mock.calls[0][0];
-      expect(callArg.password).not.toBe('plaintext');
-      const isHashed = await bcrypt.compare('plaintext', callArg.password);
+      const savedUser = repo.save.mock.calls[0][0];
+      expect(savedUser.password).not.toBe('plaintext');
+      const isHashed = await bcrypt.compare('plaintext', savedUser.password || '');
       expect(isHashed).toBe(true);
     });
   });
 
   describe('findById', () => {
     it('returns user when found', async () => {
-      model.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(mockUser) } as any);
-      const result = await service.findById('some-id');
+      repo.findOne.mockResolvedValue(mockUser as any);
+      const result = await service.findById(1);
       expect(result).toEqual(mockUser);
-      expect(model.findById).toHaveBeenCalledWith('some-id');
+      expect(repo.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
     });
 
     it('returns null when not found', async () => {
-      model.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) } as any);
-      const result = await service.findById('nonexistent');
+      repo.findOne.mockResolvedValue(null);
+      const result = await service.findById(999);
       expect(result).toBeNull();
     });
   });
 
   describe('updateRefreshToken', () => {
     it('stores hashed token when token provided', async () => {
-      model.findByIdAndUpdate.mockResolvedValue(mockUser as any);
-      await service.updateRefreshToken('some-id', 'raw-refresh-token');
-      const callArg = (model.findByIdAndUpdate as jest.Mock).mock.calls[0][1];
-      expect(callArg.refreshToken).not.toBe('raw-refresh-token');
-      const isHashed = await bcrypt.compare('raw-refresh-token', callArg.refreshToken);
+      await service.updateRefreshToken(1, 'raw-refresh-token');
+      const updateArg = repo.update.mock.calls[0][1] as any;
+      expect(updateArg.refreshToken).not.toBe('raw-refresh-token');
+      const isHashed = await bcrypt.compare('raw-refresh-token', updateArg.refreshToken);
       expect(isHashed).toBe(true);
     });
 
     it('stores null when token is null', async () => {
-      model.findByIdAndUpdate.mockResolvedValue(mockUser as any);
-      await service.updateRefreshToken('some-id', null);
-      const callArg = (model.findByIdAndUpdate as jest.Mock).mock.calls[0][1];
-      expect(callArg.refreshToken).toBeNull();
+      await service.updateRefreshToken(1, null);
+      const updateArg = repo.update.mock.calls[0][1] as any;
+      expect(updateArg.refreshToken).toBeNull();
     });
   });
 });

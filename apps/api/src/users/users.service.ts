@@ -1,53 +1,64 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User, UserDocument } from './schemas/user.schema';
+import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
 
-  async create(dto: CreateUserDto): Promise<UserDocument> {
+  async create(dto: CreateUserDto): Promise<User> {
     const hashed = await bcrypt.hash(dto.password, 12);
-    const created = await this.userModel.create({ ...dto, password: hashed });
-    // Re-fetch without sensitive fields so the response never leaks password/refreshToken
-    return this.userModel.findById(created._id).select('-password -refreshToken').exec() as Promise<UserDocument>;
+    const user = this.userRepository.create({ ...dto, password: hashed });
+    const saved = await this.userRepository.save(user);
+    const { password, refreshToken, ...rest } = saved;
+    return rest as User;
   }
 
-  async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email }).exec();
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { email } });
   }
 
-  async findById(id: string): Promise<UserDocument | null> {
-    return this.userModel.findById(id).exec();
+  async findById(id: string | number): Promise<User | null> {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    if (Number.isNaN(numericId)) return null;
+    return this.userRepository.findOne({ where: { id: numericId } });
   }
 
-  async updateRefreshToken(id: string, token: string | null): Promise<void> {
+  async updateRefreshToken(id: string | number, token: string | null): Promise<void> {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
     const hashed = token ? await bcrypt.hash(token, 12) : null;
-    await this.userModel.findByIdAndUpdate(id, { refreshToken: hashed });
+    await this.userRepository.update(numericId, { refreshToken: hashed });
   }
 
-  async findAll(): Promise<UserDocument[]> {
-    return this.userModel.find().select('-password -refreshToken').exec();
+  async findAll(): Promise<User[]> {
+    return this.userRepository.find({
+      select: { id: true, email: true, role: true, createdAt: true, updatedAt: true },
+    });
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<UserDocument> {
-    const patch: Partial<User> = {};
-    if (dto.role !== undefined) patch.role = dto.role;
-    if (dto.password) patch.password = await bcrypt.hash(dto.password, 12);
-    const updated = await this.userModel
-      .findByIdAndUpdate(id, patch, { new: true })
-      .select('-password -refreshToken')
-      .exec();
-    if (!updated) throw new NotFoundException(`User ${id} not found`);
-    return updated;
+  async update(id: string | number, dto: UpdateUserDto): Promise<User> {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    const user = await this.userRepository.findOne({ where: { id: numericId } });
+    if (!user) throw new NotFoundException(`User ${id} not found`);
+
+    if (dto.role !== undefined) user.role = dto.role as any;
+    if (dto.password) user.password = await bcrypt.hash(dto.password, 12);
+
+    const saved = await this.userRepository.save(user);
+    const { password, refreshToken, ...rest } = saved;
+    return rest as User;
   }
 
-  async remove(id: string): Promise<void> {
-    const deleted = await this.userModel.findByIdAndDelete(id).exec();
-    if (!deleted) throw new NotFoundException(`User ${id} not found`);
+  async remove(id: string | number): Promise<void> {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    const result = await this.userRepository.delete(numericId);
+    if (result.affected === 0) throw new NotFoundException(`User ${id} not found`);
   }
 }

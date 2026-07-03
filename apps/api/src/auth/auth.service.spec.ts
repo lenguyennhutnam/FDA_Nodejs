@@ -14,7 +14,7 @@ describe('AuthService', () => {
 
   const hashedPassword = bcrypt.hashSync('password123', 12);
   const mockUser: any = {
-    _id: 'user-id-1',
+    id: 1,
     email: 'admin@test.com',
     password: hashedPassword,
     role: UserRole.ADMIN,
@@ -87,7 +87,7 @@ describe('AuthService', () => {
       usersService.findById.mockResolvedValue({ ...mockUser, refreshToken: hashed } as any);
       jwtService.signAsync.mockResolvedValue('signed-token');
       usersService.updateRefreshToken.mockResolvedValue(undefined);
-      const result = await service.refreshTokens('user-id-1', rawToken);
+      const result = await service.refreshTokens('1', rawToken);
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
     });
@@ -95,12 +95,12 @@ describe('AuthService', () => {
     it('throws UnauthorizedException when token does not match', async () => {
       const hashed = await bcrypt.hash('correct-token', 12);
       usersService.findById.mockResolvedValue({ ...mockUser, refreshToken: hashed } as any);
-      await expect(service.refreshTokens('user-id-1', 'wrong-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshTokens('1', 'wrong-token')).rejects.toThrow(UnauthorizedException);
     });
 
     it('throws UnauthorizedException when user has no refresh token', async () => {
       usersService.findById.mockResolvedValue({ ...mockUser, refreshToken: null } as any);
-      await expect(service.refreshTokens('user-id-1', 'any-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshTokens('1', 'any-token')).rejects.toThrow(UnauthorizedException);
     });
   });
 });

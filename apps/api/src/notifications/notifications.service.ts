@@ -1,48 +1,46 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { TargetsService } from '../targets/targets.service';
+import { Notification } from './entities/notification.entity';
 import {
-  NotificationsStore,
   NotificationRecord,
   TargetSummary,
 } from './interfaces/notification.interface';
 
-const CHANNELS = ['channel_hoatdong', 'channel_biendong'] as const;
-
-/**
- * Đọc/ghi & tổng hợp tin tức. Lưu tạm bằng file JSON.
- * Phase 3 chỉ lọc theo cửa sổ thời gian + tách relevant/irrelevant theo user_label;
- * lọc theo chế độ AI / báo chính thống để dành Phase 5 (Settings).
- */
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly targetsService: TargetsService) {}
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationRepository: Repository<Notification>,
+    private readonly targetsService: TargetsService,
+  ) {}
 
-  private get filePath(): string {
-    return (
-      process.env.NOTIFICATIONS_FILE ||
-      path.join(process.cwd(), 'data', 'notifications.json')
-    );
-  }
-
-  async loadAll(): Promise<NotificationsStore> {
+  private mapEntityToRecord(item: Notification): NotificationRecord {
+    let aiResultParsed = null;
     try {
-      const raw = await fs.readFile(this.filePath, 'utf-8');
-      const data = JSON.parse(raw);
-      return {
-        channel_hoatdong: Array.isArray(data?.channel_hoatdong) ? data.channel_hoatdong : [],
-        channel_biendong: Array.isArray(data?.channel_biendong) ? data.channel_biendong : [],
-      };
-    } catch (e: any) {
-      if (e.code === 'ENOENT') return { channel_hoatdong: [], channel_biendong: [] };
-      throw e;
-    }
-  }
+      aiResultParsed = item.ai_result ? JSON.parse(item.ai_result) : null;
+    } catch (e) {}
 
-  async saveAll(store: NotificationsStore): Promise<void> {
-    await fs.mkdir(path.dirname(this.filePath), { recursive: true });
-    await fs.writeFile(this.filePath, JSON.stringify(store, null, 2), 'utf-8');
+    return {
+      timestamp: item.timestamp,
+      scan_time: item.scan_time ?? undefined,
+      target_name: item.target_name,
+      target_position: item.target_position,
+      target_bio: item.target_bio,
+      title: item.title,
+      description: item.description,
+      url: item.url,
+      resolved_url: item.resolved_url,
+      published: item.published,
+      news_kind: item.news_kind as any,
+      press_name: item.press_name,
+      press_domain: item.press_domain,
+      ai_result: aiResultParsed,
+      user_label: item.user_label as any,
+    };
   }
 
   /**
@@ -50,8 +48,21 @@ export class NotificationsService {
    * Trả về số tin thực sự được thêm.
    */
   async addRecords(records: NotificationRecord[]): Promise<number> {
-    if (!records.length) return 0;
-    const store = await this.loadAll();
+    const added = await this.addRecordsAndGetAdded(records);
+    return added.length;
+  }
+
+  /**
+   * Thêm các tin mới quét được, bỏ qua tin trùng.
+   * Trả về danh sách các bản ghi thực sự được thêm mới.
+   */
+  async addRecordsAndGetAdded(records: NotificationRecord[]): Promise<NotificationRecord[]> {
+    if (!records.length) return [];
+    
+    const targetNames = [...new Set(records.map((r) => r.target_name))];
+    const existingRows = await this.notificationRepository.find({
+      where: { target_name: In(targetNames) },
+    });
 
     const seenUrl = new Set<string>();
     const tokensByTarget = new Map<string, Set<string>[]>();
@@ -60,17 +71,17 @@ export class NotificationsService {
       list.push(toks);
       tokensByTarget.set(name, list);
     };
-    for (const ch of CHANNELS) {
-      for (const r of store[ch]) {
-        seenUrl.add(this.key(r.target_name, r.url));
-        remember((r.target_name || '').trim(), this.titleTokens(r.title));
-      }
+
+    for (const r of existingRows) {
+      seenUrl.add(this.key(r.target_name, r.url));
+      remember((r.target_name || '').trim(), this.titleTokens(r.title));
     }
 
-    let added = 0;
+    const added: Notification[] = [];
     for (const r of records) {
       const k = this.key(r.target_name, r.url);
       if (seenUrl.has(k)) continue; // trùng URL
+      
       const name = (r.target_name || '').trim();
       const toks = this.titleTokens(r.title);
       const existing = tokensByTarget.get(name) ?? [];
@@ -79,12 +90,32 @@ export class NotificationsService {
 
       seenUrl.add(k);
       remember(name, toks);
-      const ch = r.news_kind === 'biendong' ? 'channel_biendong' : 'channel_hoatdong';
-      store[ch].push(r);
-      added++;
+
+      const entity = this.notificationRepository.create({
+        timestamp: r.timestamp,
+        scan_time: r.scan_time,
+        target_name: r.target_name,
+        target_position: r.target_position ?? '',
+        target_bio: r.target_bio ?? '',
+        title: r.title,
+        description: r.description ?? '',
+        url: r.url,
+        resolved_url: r.resolved_url ?? '',
+        published: r.published ?? '',
+        news_kind: r.news_kind,
+        press_name: r.press_name ?? '',
+        press_domain: r.press_domain ?? '',
+        ai_result: r.ai_result ? JSON.stringify(r.ai_result) : null,
+        user_label: r.user_label ?? null,
+      });
+      added.push(entity);
     }
-    if (added) await this.saveAll(store);
-    return added;
+
+    if (added.length) {
+      await this.notificationRepository.save(added);
+    }
+
+    return added.map(item => this.mapEntityToRecord(item));
   }
 
   private key(name?: string, url?: string): string {
@@ -114,12 +145,12 @@ export class NotificationsService {
 
   /** Thống kê dữ liệu tin (số lượng + dung lượng file). */
   async getStats(): Promise<{ hoatdong: number; biendong: number; total: number; bytes: number }> {
-    const store = await this.loadAll();
-    const hd = store.channel_hoatdong.length;
-    const bd = store.channel_biendong.length;
+    const hd = await this.notificationRepository.count({ where: { news_kind: 'hoatdong' } });
+    const bd = await this.notificationRepository.count({ where: { news_kind: 'biendong' } });
     let bytes = 0;
     try {
-      bytes = (await fs.stat(this.filePath)).size;
+      const dbFile = path.join(process.cwd(), 'data', 'fda.db');
+      bytes = (await fs.stat(dbFile)).size;
     } catch {
       bytes = 0;
     }
@@ -128,80 +159,109 @@ export class NotificationsService {
 
   /** Xóa tin theo khoảng thời gian (1h/24h/7d/4w/all). Trả số tin đã xóa. */
   async clear(range: string): Promise<{ removed: number }> {
-    const store = await this.loadAll();
-    const before = store.channel_hoatdong.length + store.channel_biendong.length;
-
     if (range === 'all') {
-      await this.saveAll({ channel_hoatdong: [], channel_biendong: [] });
-      return { removed: before };
+      const count = await this.notificationRepository.count();
+      await this.notificationRepository.clear();
+      return { removed: count };
     }
 
     const hoursMap: Record<string, number> = { '1h': 1, '24h': 24, '7d': 168, '4w': 672 };
     const hrs = hoursMap[range];
     if (!hrs) return { removed: 0 };
-    const cutoff = Date.now() - hrs * 3600 * 1000;
+    const cutoff = new Date(Date.now() - hrs * 3600 * 1000).toISOString();
 
-    for (const ch of CHANNELS) {
-      store[ch] = store[ch].filter((r) => {
-        const t = r.scan_time ? this.ts(r.scan_time) : this.ts(r.timestamp);
-        return t < cutoff;
-      });
-    }
-    await this.saveAll(store);
-    const after = store.channel_hoatdong.length + store.channel_biendong.length;
-    return { removed: before - after };
+    const qb = this.notificationRepository.createQueryBuilder()
+      .delete()
+      .from(Notification)
+      .where('COALESCE(scan_time, timestamp) >= :cutoff', { cutoff });
+    
+    const result = await qb.execute();
+    return { removed: result.affected ?? 0 };
   }
 
   /** Tin mới nhất (gộp 2 kênh), sắp xếp giảm dần theo thời gian. */
   async getRecent(limit = 20): Promise<NotificationRecord[]> {
-    const store = await this.loadAll();
-    const all = [...store.channel_hoatdong, ...store.channel_biendong];
-    all.sort((a, b) => this.ts(b.timestamp) - this.ts(a.timestamp));
-    return all.slice(0, limit).map((r) => this.enrich(r));
+    const list = await this.notificationRepository.find({
+      order: { timestamp: 'DESC' },
+      take: limit,
+    });
+    return list.map((item) => this.enrich(this.mapEntityToRecord(item)));
   }
 
   /** Thẻ tóm tắt cho từng mục tiêu trong danh sách. */
   async summarize(hours: number): Promise<TargetSummary[]> {
-    const store = await this.loadAll();
     const targets = await this.targetsService.findAll();
-    return targets.map((t) => this.buildSummary(t.name, hours, store));
+    const cutoff = new Date(Date.now() - Math.max(0.1, hours) * 3600 * 1000).toISOString();
+    
+    const list = await this.notificationRepository
+      .createQueryBuilder('n')
+      .where('COALESCE(n.scan_time, n.timestamp) >= :cutoff', { cutoff })
+      .getMany();
+
+    const records = list.map(item => this.mapEntityToRecord(item));
+
+    return targets.map((t) => {
+      const rowsHd = records.filter(
+        (r) =>
+          r.target_name === t.name &&
+          r.news_kind === 'hoatdong' &&
+          r.user_label !== 'irrelevant',
+      );
+      const rowsBd = records.filter(
+        (r) => r.target_name === t.name && r.news_kind === 'biendong',
+      );
+      return this.buildSummaryFromRows(t.name, hours, rowsHd, rowsBd);
+    });
   }
 
   /** Chi tiết 1 mục tiêu: tóm tắt + danh sách tin (relevant / irrelevant / đổi chức vụ). */
   async getDetail(name: string, hours: number) {
-    const store = await this.loadAll();
     const target = name.trim();
-    const rowsHd = this.rowsInWindow(store.channel_hoatdong, target, hours);
-    const rowsBd = this.rowsInWindow(store.channel_biendong, target, hours);
+    const cutoff = new Date(Date.now() - Math.max(0.1, hours) * 3600 * 1000).toISOString();
+
+    const list = await this.notificationRepository
+      .createQueryBuilder('n')
+      .where('n.target_name = :target', { target })
+      .andWhere('COALESCE(n.scan_time, n.timestamp) >= :cutoff', { cutoff })
+      .getMany();
+
+    const records = list.map(item => this.enrich(this.mapEntityToRecord(item)));
+
+    const rowsHd = records.filter((r) => r.news_kind === 'hoatdong');
+    const rowsBd = records.filter((r) => r.news_kind === 'biendong');
+
     const rel = rowsHd.filter((r) => r.user_label !== 'irrelevant');
     const irrel = rowsHd.filter((r) => r.user_label === 'irrelevant');
+
+    const sortDesc = (a: any, b: any) => this.ts(b.timestamp) - this.ts(a.timestamp);
+    rel.sort(sortDesc);
+    irrel.sort(sortDesc);
+    rowsBd.sort(sortDesc);
+
+    const summary = this.buildSummaryFromRows(target, hours, rel, rowsBd);
+
     return {
       target_name: target,
       since_hours: hours,
-      summary: this.buildSummary(target, hours, store),
-      records_hoatdong: rel.map((r) => this.enrich(r)),
-      records_hoatdong_irrelevant: irrel.map((r) => this.enrich(r)),
-      records_biendong: rowsBd.map((r) => this.enrich(r)),
+      summary,
+      records_hoatdong: rel,
+      records_hoatdong_irrelevant: irrel,
+      records_biendong: rowsBd,
     };
   }
 
   /** Gán/xóa user_label cho các bài theo url (khớp url hoặc resolved_url). */
   async label(urls: string[], label: string): Promise<{ labeled: number }> {
-    const store = await this.loadAll();
-    const urlSet = new Set(urls.map((u) => String(u)));
-    const value = (label || '').trim();
-    let count = 0;
-    for (const ch of CHANNELS) {
-      for (const item of store[ch]) {
-        if (urlSet.has(item.url) || (item.resolved_url && urlSet.has(item.resolved_url))) {
-          if (value) item.user_label = value;
-          else delete item.user_label;
-          count++;
-        }
-      }
-    }
-    await this.saveAll(store);
-    return { labeled: count };
+    if (!urls.length) return { labeled: 0 };
+    const value = label.trim() || null;
+    
+    const result = await this.notificationRepository.createQueryBuilder()
+      .update(Notification)
+      .set({ user_label: value })
+      .where('url IN (:...urls) OR (resolved_url IS NOT NULL AND resolved_url IN (:...urls))', { urls })
+      .execute();
+    
+    return { labeled: result.affected ?? 0 };
   }
 
   // ── Helpers ────────────────────────────────────────────────────
@@ -212,33 +272,16 @@ export class NotificationsService {
     return Number.isNaN(t) ? 0 : t;
   }
 
-  private rowsInWindow(
-    rows: NotificationRecord[],
-    name: string,
-    hours: number,
-  ): NotificationRecord[] {
-    const cutoff = Date.now() - Math.max(0.1, hours) * 3600 * 1000;
-    // Dùng scan_time (lúc quét) cho cửa sổ lọc; fallback timestamp (pubDate) cho bản ghi cũ
-    const filterTs = (r: NotificationRecord) =>
-      r.scan_time ? this.ts(r.scan_time) : this.ts(r.timestamp);
-    return rows
-      .filter((r) => (r.target_name || '').trim() === name && filterTs(r) >= cutoff)
-      .sort((a, b) => this.ts(b.timestamp) - this.ts(a.timestamp));
-  }
-
   private enrich(row: NotificationRecord): NotificationRecord & { article_url: string } {
     return { ...row, article_url: row.resolved_url || row.url || '' };
   }
 
-  private buildSummary(
+  private buildSummaryFromRows(
     name: string,
     hours: number,
-    store: NotificationsStore,
+    rowsHd: NotificationRecord[],
+    rowsBd: NotificationRecord[],
   ): TargetSummary {
-    const rowsHd = this.rowsInWindow(store.channel_hoatdong, name, hours).filter(
-      (r) => r.user_label !== 'irrelevant',
-    );
-    const rowsBd = this.rowsInWindow(store.channel_biendong, name, hours);
     const nHd = rowsHd.length;
     const nBd = rowsBd.length;
 
