@@ -1,6 +1,6 @@
 # Không đẩy key API / token lên Git
 .env
-.env.*
+*.env*
 !.env.example
 config/config.json
 Phan_mem/config/config.json
