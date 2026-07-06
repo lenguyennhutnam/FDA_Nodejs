@@ -101,4 +101,13 @@ export const NotificationService = {
       token,
     });
   },
+
+  setNewsKind: async (url: string, target_name: string, kind: 'hoatdong' | 'biendong', token: string): Promise<{ updated: number }> => {
+    return api.makeAuthRequest({
+      url: '/notifications/news-kind',
+      method: 'POST',
+      data: { url, target_name, kind },
+      token,
+    });
+  },
 };

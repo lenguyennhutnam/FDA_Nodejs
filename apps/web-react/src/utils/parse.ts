@@ -3,7 +3,7 @@ import {formatTime} from "../types";
 import {toArray} from "./check";
 
 const formatDateToString = (
-  date: Object | string | null,
+  date: object | string | null,
   format: formatTime | string | null = null
 ) => {
   const validDate = dayjs(date?.toString())?.isValid();

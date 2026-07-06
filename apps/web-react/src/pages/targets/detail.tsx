@@ -7,54 +7,98 @@ import { NotificationService, type NotificationRecord, type TargetDetail } from 
 import { formatTimestamp, STATUS_META } from '@/lib/format';
 import { RouterLink } from '@/routers/routers';
 
-type Tab = 'relevant' | 'irrelevant';
+import { TButton } from '@/components/tButton';
+import { TTabs, TTab } from '@/components/tTabs';
 
-function RecordCard({ rec, checked, onToggle, dimmed }: { rec: NotificationRecord; checked: boolean; onToggle: () => void; dimmed?: boolean }) {
-  const ai = rec.ai_result || {};
+function parseAiResult(ai: any) {
+  if (typeof ai === 'string') {
+    try { return JSON.parse(ai); } catch { return {}; }
+  }
+  return ai || {};
+}
+
+function RecordCard({ rec, checked, onToggle, dimmed, onChangeNewsKind }: { rec: NotificationRecord; checked: boolean; onToggle: () => void; dimmed?: boolean; onChangeNewsKind?: (kind: 'hoatdong' | 'biendong') => void }) {
+  const ai = parseAiResult(rec.ai_result);
   const url = rec.article_url || rec.resolved_url || rec.url || '';
   const press = rec.press_name || rec.press_domain || '';
   const bullets = Array.isArray(ai.Activity_Bullets) ? ai.Activity_Bullets : [];
-  const isChange = !!ai.Is_Change;
+  const isChange = rec.news_kind === 'biendong';
 
   return (
     <article
-      className={`border rounded-lg p-4 cursor-pointer transition ${
-        checked ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-      } ${dimmed ? 'opacity-60' : ''}`}
+      className={`group relative border rounded-2xl p-5 cursor-pointer transition-all duration-300 overflow-hidden ${
+        checked 
+          ? 'border-blue-400 bg-blue-50/50 shadow-md shadow-blue-900/5 translate-x-1' 
+          : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-lg hover:shadow-gray-200/50 hover:-translate-y-0.5'
+      } ${dimmed ? 'opacity-60 saturate-50' : ''}`}
       onClick={onToggle}
     >
-      <div className="flex items-start gap-3">
-        <input type="checkbox" checked={checked} onChange={onToggle} onClick={(e) => e.stopPropagation()} className="mt-1" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            {press && <span className="text-xs text-gray-500">{press}</span>}
-            {isChange && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Đổi chức vụ</span>}
+      {/* Decorative accent for selected state */}
+      {checked && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-2xl"></div>}
+      
+      <div className="flex items-start gap-4">
+        <div className="pt-1">
+          <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${checked ? 'bg-blue-600 border-blue-600' : 'border-gray-300 group-hover:border-blue-400'}`}>
+            {checked && <span className="text-white text-xs font-bold">✓</span>}
           </div>
-          <h3 className="font-medium text-gray-900 mt-1">
-            <a href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="hover:text-blue-600">
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              {press && <span className="text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100 px-2 py-0.5 rounded">{press}</span>}
+              {isChange && <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 border border-amber-200">Đổi chức vụ</span>}
+            </div>
+            
+            {onChangeNewsKind && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChangeNewsKind(isChange ? 'hoatdong' : 'biendong');
+                }}
+                className={`text-xs px-2.5 py-1 rounded-md transition-colors border ${
+                  isChange 
+                    ? 'border-gray-200 text-gray-600 hover:bg-gray-100' 
+                    : 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100'
+                }`}
+              >
+                {isChange ? 'Chuyển thành Hoạt động thường' : 'Đánh dấu Đổi chức vụ'}
+              </button>
+            )}
+          </div>
+          <h3 className="font-bold text-gray-900 text-lg leading-snug">
+            <a href={url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="hover:text-blue-600 transition-colors">
               {rec.title}
             </a>
           </h3>
-          {rec.timestamp && <div className="text-xs text-gray-400 mt-1">{formatTimestamp(rec.timestamp)}</div>}
+          {rec.timestamp && <div className="text-xs font-mono text-gray-400 mt-1">{formatTimestamp(rec.timestamp)}</div>}
+          
           {(ai.From_Position || ai.To_Position || ai.Position_Full_Official) && (
-            <dl className="text-sm mt-2 text-gray-700">
-              {(ai.Position_Full_Official || ai.To_Position) && (
-                <div className="flex gap-2">
-                  <dt className="text-gray-400">Chức vụ:</dt>
-                  <dd>{ai.Position_Full_Official || ai.To_Position}</dd>
-                </div>
-              )}
-              {ai.From_Position && (
-                <div className="flex gap-2">
-                  <dt className="text-gray-400">Trước đây:</dt>
-                  <dd>{ai.From_Position}</dd>
-                </div>
-              )}
-            </dl>
+            <div className="mt-3 bg-gray-50/80 rounded-xl p-3 border border-gray-100">
+              <dl className="text-sm text-gray-700 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+                {(ai.Position_Full_Official || ai.To_Position) && (
+                  <>
+                    <dt className="text-gray-400 font-medium">Chức vụ:</dt>
+                    <dd className="font-semibold text-gray-900">{ai.Position_Full_Official || ai.To_Position}</dd>
+                  </>
+                )}
+                {ai.From_Position && (
+                  <>
+                    <dt className="text-gray-400 font-medium">Trước đây:</dt>
+                    <dd className="line-through text-gray-500">{ai.From_Position}</dd>
+                  </>
+                )}
+              </dl>
+            </div>
           )}
+          
           {bullets.length > 0 && (
-            <ul className="list-disc list-inside text-sm text-gray-600 mt-2">
-              {bullets.map((b, i) => <li key={i}>{b}</li>)}
+            <ul className="mt-3 space-y-1.5">
+              {bullets.map((b, i) => (
+                <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
+                  <span className="text-blue-500 mt-0.5">•</span>
+                  <span className="leading-relaxed">{b}</span>
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -123,7 +167,6 @@ export default function TargetDetailPage() {
   const rel = detail?.records_hoatdong || [];
   const irrel = detail?.records_hoatdong_irrelevant || [];
   const bd = detail?.records_biendong || [];
-  const activeList = tab === 'relevant' ? rel : irrel;
 
   const keyOf = (r: NotificationRecord) => r.url || r.article_url || '';
   
@@ -134,6 +177,20 @@ export default function TargetDetailPage() {
       next.has(k) ? next.delete(k) : next.add(k);
       return next;
     });
+  };
+
+  const updateNewsKind = async (r: NotificationRecord, kind: 'hoatdong'|'biendong') => {
+    const url = keyOf(r);
+    const token = StoreService.getAuthToken() ?? '';
+    setPending(true);
+    try {
+      await NotificationService.setNewsKind(url, target.name, kind, token);
+      await fetchData();
+    } catch (e: any) {
+      alert(e.message || 'Lỗi khi cập nhật trạng thái');
+    } finally {
+      setPending(false);
+    }
   };
 
   const applyLabel = async (label: string) => {
@@ -162,89 +219,160 @@ export default function TargetDetailPage() {
     URL.revokeObjectURL(a.href);
   };
 
-  return (
-    <main className="p-8 max-w-5xl mx-auto">
-      <Link to={RouterLink.DASHBOARD} className="text-sm text-blue-600 hover:underline">← Quay lại Dashboard</Link>
+  // Bulk actions toolbar component
+  const BulkActions = ({ isRelevantTab }: { isRelevantTab: boolean }) => {
+    if (selected.size === 0) return null;
+    return (
+      <div className="sticky top-4 z-10 flex items-center gap-3 mb-4 bg-white/80 backdrop-blur-lg border border-gray-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-xl px-4 py-3 transform transition-all duration-300">
+        <span className="text-sm font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md">{selected.size} bài đã chọn</span>
+        <div className="flex-1" />
+        {isRelevantTab ? (
+          <TButton 
+            variant="outlined"
+            color="warning"
+            onClick={() => applyLabel('irrelevant')} 
+            disabled={pending} 
+            sx={{ borderRadius: '8px', textTransform: 'none' }}
+          >
+            ❌ Đánh dấu không liên quan
+          </TButton>
+        ) : (
+          <TButton 
+            variant="outlined"
+            color="success"
+            onClick={() => applyLabel('')} 
+            disabled={pending}
+            sx={{ borderRadius: '8px', textTransform: 'none' }}
+          >
+            ✅ Khôi phục lại
+          </TButton>
+        )}
+        <TButton 
+          variant="text"
+          color="inherit"
+          onClick={() => setSelected(new Set())} 
+          sx={{ borderRadius: '8px', textTransform: 'none', color: 'text.secondary' }}
+        >
+          Bỏ chọn
+        </TButton>
+      </div>
+    );
+  };
 
-      <div className="bg-white rounded-xl shadow-sm p-6 mt-3 mb-6">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{target.name}</h1>
-            {target.position && <p className="text-gray-600 mt-1">{target.position}</p>}
-            <p className="text-gray-400 text-sm mt-1">Trong {hours} giờ gần nhất</p>
+  return (
+    <main className="p-4 sm:p-8 max-w-6xl mx-auto min-h-screen bg-gray-50/30">
+      <Link to={RouterLink.DASHBOARD} className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors mb-4">
+        <span>←</span> Quay lại Dashboard
+      </Link>
+
+      {/* Hero Banner Section */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-blue-900 to-blue-800 rounded-3xl shadow-xl p-8 sm:p-10 text-white mb-8">
+        {/* Background decorative elements */}
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-white/10 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-40 h-40 rounded-full bg-blue-400/20 blur-2xl"></div>
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
+          <div className="flex-1">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">{target.name}</h1>
+            {target.position && (
+              <div className="flex items-center gap-2 text-blue-100 text-lg font-medium">
+                <span>💼</span> {target.position}
+              </div>
+            )}
+            <p className="text-blue-200/80 text-sm mt-2 font-mono">Dữ liệu trong {hours} giờ qua</p>
+            
+            {target.bio && (
+              <div className="mt-6 bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10">
+                <p className="text-sm text-blue-50 leading-relaxed whitespace-pre-line">{target.bio}</p>
+              </div>
+            )}
           </div>
-          <span className={`text-sm px-3 py-1 rounded-full ${meta.className}`}>{meta.label}</span>
+          
+          <div className="shrink-0 flex flex-col gap-4 items-end">
+            <span className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-sm font-medium">
+              <span>{meta.icon}</span> {meta.label}
+            </span>
+            
+            {summary && (
+              <div className="flex flex-col gap-2 w-full md:w-auto">
+                <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 px-5 border border-white/10 flex items-center justify-between gap-4">
+                  <span className="text-blue-200 text-sm font-medium">Hoạt động</span>
+                  <span className="text-2xl font-bold">{summary.activity_count}</span>
+                </div>
+                <div className="bg-white/10 backdrop-blur-md rounded-xl p-3 px-5 border border-white/10 flex items-center justify-between gap-4">
+                  <span className="text-amber-200 text-sm font-medium">Đổi chức vụ</span>
+                  <span className="text-2xl font-bold">{summary.change_count}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        {target.bio && (
-          <p className="text-sm text-gray-600 mt-4 border-t pt-4 whitespace-pre-line">{target.bio}</p>
-        )}
-        {summary && (
-          <div className="flex gap-6 mt-4 text-sm">
-            <span className="text-gray-700"><b className="text-gray-900 text-lg">{summary.activity_count}</b> hoạt động</span>
-            <span className="text-gray-700"><b className="text-gray-900 text-lg">{summary.change_count}</b> đổi chức vụ</span>
-          </div>
-        )}
       </div>
 
       {!detail ? (
-        <p className="text-gray-400">Không tải được dữ liệu tin.</p>
+        <div className="text-center py-12 bg-white rounded-3xl border border-gray-100 shadow-sm">
+          <span className="text-4xl block mb-2 opacity-30">📭</span>
+          <p className="text-gray-400">Không tải được dữ liệu tin tức.</p>
+        </div>
       ) : (
         <div className="space-y-8">
-          <section>
-            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <h2 className="text-lg font-semibold text-gray-900">Hoạt động</h2>
-              <button onClick={exportJson} className="text-sm px-3 py-1.5 rounded-lg border text-gray-700 hover:bg-gray-50">Tải JSON</button>
+          <section className="bg-white rounded-3xl p-2 sm:p-6 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <span className="bg-blue-100 text-blue-600 p-1.5 rounded-lg">📰</span> Bảng tin Hoạt động
+              </h2>
+              <TButton 
+                variant="outlined" 
+                onClick={exportJson} 
+                sx={{ borderRadius: '10px', textTransform: 'none', borderColor: '#e5e7eb', color: '#4b5563' }}
+              >
+                📥 Xuất JSON
+              </TButton>
             </div>
 
-            <div className="flex gap-2 mb-3">
-              <button onClick={() => { setTab('relevant'); setSelected(new Set()); }}
-                className={`text-sm px-3 py-1.5 rounded-lg ${tab === 'relevant' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                Tin liên quan ({rel.length})
-              </button>
-              <button onClick={() => { setTab('irrelevant'); setSelected(new Set()); }}
-                className={`text-sm px-3 py-1.5 rounded-lg ${tab === 'irrelevant' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                Không liên quan ({irrel.length})
-              </button>
-            </div>
+            <TTabs 
+              onChange={(newTab: number) => {
+                setTab(newTab === 0 ? 'relevant' : 'irrelevant');
+                setSelected(new Set());
+              }}
+            >
+              <TTab label={`📌 Tin liên quan (${rel.length})`}>
+                <BulkActions isRelevantTab={true} />
+                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                  {rel.length === 0 ? (
+                    <div className="text-center py-10 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                      <p className="text-sm text-gray-400 font-medium">Chưa có tin liên quan nào.</p>
+                    </div>
+                  ) : (
+                    rel.map((r) => <RecordCard key={keyOf(r)} rec={r} checked={selected.has(keyOf(r))} onToggle={() => toggle(r)} onChangeNewsKind={(kind) => updateNewsKind(r, kind)} />)
+                  )}
+                </div>
+              </TTab>
+              <TTab label={`🗑️ Không liên quan (${irrel.length})`}>
+                <BulkActions isRelevantTab={false} />
+                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                  {irrel.length === 0 ? (
+                    <div className="text-center py-10 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                      <p className="text-sm text-gray-400 font-medium">Thùng rác trống.</p>
+                    </div>
+                  ) : (
+                    irrel.map((r) => <RecordCard key={keyOf(r)} rec={r} checked={selected.has(keyOf(r))} onToggle={() => toggle(r)} dimmed />)
+                  )}
+                </div>
+              </TTab>
+            </TTabs>
+          </section>
 
-            {selected.size > 0 && (
-              <div className="flex items-center gap-2 mb-3 bg-gray-50 border rounded-lg px-3 py-2">
-                <span className="text-sm text-gray-600">{selected.size} bài được chọn</span>
-                <div className="flex-1" />
-                {tab === 'relevant' ? (
-                  <button onClick={() => applyLabel('irrelevant')} disabled={pending} className="text-sm px-3 py-1 rounded-lg border text-gray-700 hover:bg-white disabled:opacity-50">
-                    Đánh dấu không liên quan
-                  </button>
-                ) : (
-                  <button onClick={() => applyLabel('')} disabled={pending} className="text-sm px-3 py-1 rounded-lg border text-gray-700 hover:bg-white disabled:opacity-50">
-                    Khôi phục
-                  </button>
-                )}
-                <button onClick={() => setSelected(new Set())} className="text-sm px-3 py-1 rounded-lg text-gray-500 hover:text-gray-700">
-                  Bỏ chọn
-                </button>
+          {bd.length > 0 && (
+            <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
+                <span className="bg-amber-100 text-amber-600 p-1.5 rounded-lg">⚠️</span> Cảnh báo Đổi chức vụ
+              </h2>
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                {bd.map((r) => <RecordCard key={keyOf(r)} rec={r} checked={selected.has(keyOf(r))} onToggle={() => toggle(r)} onChangeNewsKind={(kind) => updateNewsKind(r, kind)} />)}
               </div>
-            )}
-
-            <div className="space-y-3">
-              {activeList.length === 0 ? (
-                <p className="text-sm text-gray-400">{tab === 'relevant' ? 'Chưa có tin liên quan.' : 'Chưa có tin không liên quan.'}</p>
-              ) : (
-                activeList.map((r) => <RecordCard key={keyOf(r)} rec={r} checked={selected.has(keyOf(r))} onToggle={() => toggle(r)} dimmed={tab === 'irrelevant'} />)
-              )}
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Thay đổi chức vụ</h2>
-            <div className="space-y-3">
-              {bd.length === 0 ? (
-                <p className="text-sm text-gray-400">Chưa có tin.</p>
-              ) : (
-                bd.map((r) => <RecordCard key={keyOf(r)} rec={r} checked={selected.has(keyOf(r))} onToggle={() => toggle(r)} />)
-              )}
-            </div>
-          </section>
+            </section>
+          )}
         </div>
       )}
     </main>

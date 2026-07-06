@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAppSelector } from '@/hooks';
 import { StoreService } from '@/utils/store';
 import { SettingService, type PublicSettings, type DataStats, type PressSource } from '@/lib/apis/settings';
+import { UserService } from '@/lib/apis/users';
 import { CircularProgress, Box } from '@mui/material';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -66,6 +67,11 @@ export default function SettingsPage() {
   const [press, setPress] = useState<PressSource[]>([]);
   const [newPress, setNewPress] = useState({ name: '', homepage_url: '' });
   const [clearRange, setClearRange] = useState('all');
+
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdPending, setPwdPending] = useState(false);
 
   useEffect(() => {
     const token = StoreService.getAuthToken() ?? '';
@@ -134,6 +140,33 @@ export default function SettingsPage() {
     finally { setPending(false); }
   };
 
+  const doChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) return alert('Vui lòng nhập đầy đủ thông tin');
+    if (pwdNew !== pwdConfirm) return alert('Mật khẩu mới không khớp');
+    
+    setPwdPending(true);
+    try {
+      await UserService.changePasswordApi({ currentPassword: pwdCurrent, newPassword: pwdNew }, token());
+      alert('Đổi mật khẩu thành công!');
+      setPwdCurrent(''); setPwdNew(''); setPwdConfirm('');
+    } catch (err: any) {
+      alert('Lỗi: ' + err.message);
+    } finally {
+      setPwdPending(false);
+    }
+  };
+
+  const handleAddPress = () => {
+    if (!newPress.name || !newPress.homepage_url) return;
+    setPress([...press, { ...newPress, id: Date.now().toString() }]);
+    setNewPress({ name: '', homepage_url: '' });
+  };
+
+  const handleRemovePress = (id: string) => {
+    setPress(press.filter(p => p.id !== id));
+  };
+
   if (loading || !settings) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -156,11 +189,33 @@ export default function SettingsPage() {
 
       {ro && (
         <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Bạn đang ở chế độ chỉ xem.
+          Bạn đang ở chế độ chỉ xem. Các thay đổi đối với hệ thống sẽ không được lưu.
         </p>
       )}
 
       <div className="space-y-6">
+        <Section title="🔒 Tài khoản cá nhân">
+          <form onSubmit={doChangePassword} className="space-y-3 pt-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu hiện tại</label>
+              <input type="password" required value={pwdCurrent} onChange={e => setPwdCurrent(e.target.value)} 
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu mới</label>
+              <input type="password" required minLength={8} value={pwdNew} onChange={e => setPwdNew(e.target.value)} 
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Xác nhận mật khẩu mới</label>
+              <input type="password" required minLength={8} value={pwdConfirm} onChange={e => setPwdConfirm(e.target.value)} 
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <button type="submit" disabled={pwdPending} className="mt-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-200 disabled:opacity-50 transition-colors">
+              {pwdPending ? 'Đang xử lý...' : 'Đổi mật khẩu'}
+            </button>
+          </form>
+        </Section>
         <Section title="⚙️ Cài đặt quét">
           <Row label="Số tin tối đa / mục tiêu" hint="1–100">
             <input type="number" min={1} max={100} value={scan.max_results_per_target} disabled={ro}
@@ -208,6 +263,46 @@ export default function SettingsPage() {
                 className="text-sm px-3 py-1.5 rounded-lg border text-gray-700 hover:bg-gray-50 disabled:opacity-60">
                 Gửi thử
               </button>
+            )}
+          </div>
+        </Section>
+
+        <Section title="📰 Nguồn tin & Lọc">
+          <Row label="Chỉ quét từ báo chính thống" hint="Lọc các bài viết từ tên miền không có trong danh sách bên dưới">
+            <Toggle checked={filterCt} disabled={ro} onChange={setFilterCt} />
+          </Row>
+          
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Danh sách báo chính thống</h3>
+            <div className="space-y-2 mb-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+              {press.length === 0 ? (
+                <p className="text-xs text-gray-400">Chưa có nguồn nào.</p>
+              ) : (
+                press.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-800">{p.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{p.homepage_url}</div>
+                    </div>
+                    {!ro && (
+                      <button onClick={() => handleRemovePress(p.id)} className="text-red-500 hover:text-red-700 p-1">
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            {!ro && (
+              <div className="flex gap-2">
+                <input type="text" placeholder="Tên báo (VD: VnExpress)" value={newPress.name} onChange={e => setNewPress({ ...newPress, name: e.target.value })} 
+                  className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500" />
+                <input type="text" placeholder="Domain (VD: vnexpress.net)" value={newPress.homepage_url} onChange={e => setNewPress({ ...newPress, homepage_url: e.target.value })} 
+                  className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500" />
+                <button onClick={handleAddPress} className="bg-gray-100 border text-gray-700 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-200">
+                  Thêm
+                </button>
+              </div>
             )}
           </div>
         </Section>

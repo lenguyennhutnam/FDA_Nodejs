@@ -194,7 +194,7 @@ export class NotificationsService {
       const rowsBd = records.filter(
         (r) => r.target_name === t.name && r.news_kind === 'biendong',
       );
-      return this.buildSummaryFromRows(t.name, hours, rowsHd, rowsBd);
+      return this.buildSummaryFromRows(t.name, t.position, t.bio, hours, rowsHd, rowsBd);
     });
   }
 
@@ -221,7 +221,7 @@ export class NotificationsService {
     irrel.sort(sortDesc);
     rowsBd.sort(sortDesc);
 
-    const summary = this.buildSummaryFromRows(target, hours, rel, rowsBd);
+    const summary = this.buildSummaryFromRows(target, undefined, undefined, hours, rel, rowsBd);
 
     return {
       target_name: target,
@@ -246,6 +246,17 @@ export class NotificationsService {
     return { labeled: result.affected ?? 0 };
   }
 
+  async setNewsKind(url: string, targetName: string, kind: 'hoatdong' | 'biendong'): Promise<{ updated: number }> {
+    if (!url || !targetName) return { updated: 0 };
+    const result = await this.notificationDBService.repo.createQueryBuilder()
+      .update(Notification)
+      .set({ news_kind: kind })
+      .where('(url = :url OR (resolved_url IS NOT NULL AND resolved_url = :url)) AND target_name = :targetName', { url, targetName })
+      .execute();
+    
+    return { updated: result.affected ?? 0 };
+  }
+
   private ts(value?: string): number {
     if (!value) return 0;
     const t = new Date(value).getTime();
@@ -258,6 +269,8 @@ export class NotificationsService {
 
   private buildSummaryFromRows(
     name: string,
+    position: string | undefined,
+    bio: string | undefined,
     hours: number,
     rowsHd: NotificationRecord[],
     rowsBd: NotificationRecord[],
@@ -301,6 +314,8 @@ export class NotificationsService {
 
     return {
       target_name: name,
+      target_position: position,
+      target_bio: bio,
       status,
       headline,
       activity_count: nHd,

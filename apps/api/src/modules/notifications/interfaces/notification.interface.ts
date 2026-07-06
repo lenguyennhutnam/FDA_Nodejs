@@ -37,6 +37,8 @@ export interface NotificationsStore {
 
 export interface TargetSummary {
   target_name: string;
+  target_position?: string;
+  target_bio?: string;
   status: 'change' | 'stable_activity' | 'no_data';
   headline: string;
   activity_count: number;

@@ -1,19 +1,5 @@
-import {
-  Box,
-  Checkbox,
-  CircularProgress,
-  IconButton,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import { useState } from "react";
+import { Box, Checkbox, CircularProgress, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TablePagination, TableRow, Tooltip, Typography } from "@mui/material";
+import { useState, useEffect } from "react";
 import {
   FaAngleDoubleLeft,
   FaAngleDoubleRight,
@@ -68,19 +54,33 @@ export const TTable: React.FC<TTableProps> = ({
   rowIdKey = "_id",
   onRowDoubleClick,
 }) => {
+  const [internalPage, setInternalPage] = useState(pageIndex);
+  const [internalRowsPerPage, setInternalRowsPerPage] = useState(pageSize);
+  
+  // Keep internal state in sync with props
+  useEffect(() => { setInternalPage(pageIndex); }, [pageIndex]);
+  useEffect(() => { setInternalRowsPerPage(pageSize); }, [pageSize]);
+
   const [pageInput, setPageInput] = useState<string>("");
-  const totalPages = Math.ceil(total / pageSize);
+  
+  const actualTotal = Math.max(total, rows?.length || 0);
+  const totalPages = Math.ceil(actualTotal / internalRowsPerPage);
+
+  const handlePageChange = (newPage: number) => {
+    setInternalPage(newPage);
+    onChangePage(newPage);
+  };
 
   const handleChangePage = (_: unknown, newPage: number) => {
-    onChangePage(newPage + 1);
+    handlePageChange(newPage + 1);
   };
 
   const handleFirstPage = () => {
-    onChangePage(1);
+    handlePageChange(1);
   };
 
   const handleLastPage = () => {
-    onChangePage(totalPages);
+    handlePageChange(totalPages);
   };
 
   const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,7 +93,7 @@ export const TTable: React.FC<TTableProps> = ({
     if (e.key === "Enter") {
       const page = parseInt(pageInput);
       if (page && page > 0 && page <= totalPages) {
-        onChangePage(page);
+        handlePageChange(page);
       }
       setPageInput("");
     }
@@ -102,18 +102,21 @@ export const TTable: React.FC<TTableProps> = ({
   const handleChangeRowsPerPage = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    onRowPerPageChange(+event.target.value);
+    const val = +event.target.value;
+    setInternalRowsPerPage(val);
+    onRowPerPageChange(val);
+    handlePageChange(1); // Reset to first page
   };
 
   const handlePrevPage = () => {
-    if (pageIndex > 1) {
-      onChangePage(pageIndex - 1);
+    if (internalPage > 1) {
+      handlePageChange(internalPage - 1);
     }
   };
 
   const handleNextPage = () => {
-    if (pageIndex < totalPages) {
-      onChangePage(pageIndex + 1);
+    if (internalPage < totalPages) {
+      handlePageChange(internalPage + 1);
     }
   };
 
@@ -270,6 +273,12 @@ export const TTable: React.FC<TTableProps> = ({
                     },
                   }}
                 />
+                <Typography variant="body2" color="text.secondary">
+                  Trang {internalPage} / {totalPages > 0 ? totalPages : 1}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                  (Tổng: {actualTotal})
+                </Typography>
                 <Typography
                   variant="body2"
                   sx={{
@@ -292,52 +301,41 @@ export const TTable: React.FC<TTableProps> = ({
               </EmptyStateRow>
             )}
 
-            {(rows || []).length > 0 &&
-              (rows || []).map((row, index) => {
+            {(() => {
+              const visibleRows = (rows?.length === actualTotal && rows?.length > internalRowsPerPage)
+                ? (rows || []).slice((internalPage - 1) * internalRowsPerPage, internalPage * internalRowsPerPage)
+                : (rows || []);
+              
+              return visibleRows.length > 0 && visibleRows.map((row, index) => {
                 const rowId = String(row[rowIdKey]);
                 const isChecked = selectedIds.includes(rowId);
 
                 return (
-                  <Tooltip
+                  <TableRow
                     key={`row-${index}`}
-                    title={
-                      onRowDoubleClick ? "Double click để xem chi tiết" : ""
-                    }
-                    placement="top"
-                    arrow
+                    hover
+                    onClick={() => onRowDoubleClick?.(row)}
+                    sx={{
+                      cursor: onRowDoubleClick ? "pointer" : "default",
+                      "&:hover": {
+                        backgroundColor: "#f5f5f5",
+                      },
+                      backgroundColor: "#ffffff",
+                      border: onRowDoubleClick
+                        ? "1px solid transparent"
+                        : "none",
+                      transition: "all 0.2s ease-in-out",
+                      height: "auto",
+                      ...((row.style as React.CSSProperties) || {}),
+                    }}
                   >
-                    <TableRow
-                      hover
-                      onDoubleClick={() => onRowDoubleClick?.(row)}
-                      sx={{
-                        backgroundColor: "#ffffff",
-                        cursor: onRowDoubleClick ? "pointer" : "default",
-                        border: onRowDoubleClick
-                          ? "1px solid transparent"
-                          : "none",
-                        "&:hover": {
-                          backgroundColor: onRowDoubleClick
-                            ? "#e3f2fd"
-                            : "#f8f9fa",
-                          transition: "all 0.2s ease-in-out",
-                          boxShadow: onRowDoubleClick
-                            ? "0 2px 8px rgba(0,0,0,0.1)"
-                            : "none",
-                          border: onRowDoubleClick
-                            ? "1px solid #1976d2"
-                            : "none",
-                        },
-                        height: "auto",
-                        ...((row.style as React.CSSProperties) || {}),
-                      }}
-                    >
-                      {modifiedColumns.map(column => (
-                        <TableCell
-                          key={column.id}
-                          align={column.align}
-                          style={{
-                            ...(column.sticky
-                              ? {
+                    {modifiedColumns.map(column => (
+                      <TableCell
+                        key={column.id}
+                        align={column.align}
+                        style={{
+                          ...(column.sticky
+                            ? {
                                 position: "sticky",
                                 [column.sticky]:
                                   column.sticky === "left"
@@ -348,159 +346,155 @@ export const TTable: React.FC<TTableProps> = ({
                                     : "0px",
                                 zIndex: column.sticky === "left" ? 10 : 5,
                               }
-                              : {}),
-                          }}
-                          sx={{
+                            : {}),
+                        }}
+                        sx={{
+                          backgroundColor: "#ffffff",
+                          fontWeight: 400,
+                          verticalAlign: "middle",
+                          color: "#000",
+                          fontSize: "13px",
+                          border: "1px solid #ccc",
+                          borderTop: "none",
+                          borderLeft: "none",
+
+                          // Handle wordWrap
+                          whiteSpace: column.wordWrap ? "pre-wrap" : "nowrap",
+                          wordBreak: column.wordWrap
+                            ? "break-word"
+                            : "normal",
+                          overflowWrap: column.wordWrap
+                            ? "break-word"
+                            : "normal",
+                          hyphens: column.wordWrap ? "auto" : "none",
+                          maxWidth: column.maxWidth
+                            ? `${column.maxWidth}px`
+                            : column.wordWrap
+                              ? "400px"
+                              : "none",
+                          width: column.maxWidth
+                            ? `${column.maxWidth}px`
+                            : column.minWidth
+                              ? `${column.minWidth}px`
+                              : undefined,
+                          minWidth: column.wordWrap ? "200px" : "auto",
+                          padding: column.wordWrap ? "8px 12px" : "8px 12px",
+                          lineHeight: column.wordWrap ? "1.4" : "normal",
+
+                          // maxLines is handled in the cell content rendering
+
+                          "&:last-child": {
+                            borderRight: "none",
+                          },
+                          ...(column.sticky === "right" && {
+                            borderRight: "2px solid #e0e0e0 !important",
                             backgroundColor: "#ffffff",
-                            fontWeight: 400,
-                            verticalAlign: "middle",
-                            color: "#000",
-                            fontSize: "13px",
-                            border: "1px solid #ccc",
-                            borderTop: "none",
-                            borderLeft: "none",
-
-                            // Handle wordWrap
-                            whiteSpace: column.wordWrap ? "pre-wrap" : "nowrap",
-                            wordBreak: column.wordWrap
-                              ? "break-word"
-                              : "normal",
-                            overflowWrap: column.wordWrap
-                              ? "break-word"
-                              : "normal",
-                            hyphens: column.wordWrap ? "auto" : "none",
-                            maxWidth: column.maxWidth
-                              ? `${column.maxWidth}px`
-                              : column.wordWrap
-                                ? "400px"
-                                : "none",
-                            width: column.maxWidth
-                              ? `${column.maxWidth}px`
-                              : column.minWidth
-                                ? `${column.minWidth}px`
-                                : undefined,
-                            minWidth: column.wordWrap ? "200px" : "auto",
-                            padding: column.wordWrap ? "8px 12px" : "8px 12px",
-                            lineHeight: column.wordWrap ? "1.4" : "normal",
-
-                            // maxLines is handled in the cell content rendering
-
-                            "&:last-child": {
-                              borderRight: "none",
-                            },
-                            ...(column.sticky === "right" && {
-                              borderRight: "2px solid #e0e0e0 !important",
-                              backgroundColor: "#ffffff",
-                            }),
-                            ...(column.sticky === "left" && {
-                              borderLeft: "2px solid #e0e0e0 !important",
-                              backgroundColor: "#ffffff",
-                            }),
-                            ...((row.style as React.CSSProperties) || {}),
-                          }}
-                        >
-                          {column.id === "checkbox" ? (
-                            <Checkbox
-                              checked={isChecked}
-                              onChange={() => onToggleSelect?.(rowId)}
-                            />
-                          ) : column.id === "stt" ? (
-                            hidePagination ? (
-                              index + 1
-                            ) : (
-                              (pageIndex - 1) * pageSize + index + 1
-                            )
-                          ) : column.maxWidth || column.maxLines ? (
-                            <Tooltip
-                              title={row[column.id] || ""}
-                              placement="top"
-                              arrow
-                              enterDelay={500}
-                              leaveDelay={200}
-                            >
-                              <Box
-                                sx={{
-                                  // Kết hợp maxWidth và maxLines - ưu tiên maxWidth trước
-                                  ...(column.maxWidth && column.maxLines
-                                    ? {
-                                      // Cả hai thuộc tính: kết hợp hài hòa
-                                      maxWidth: `${column.maxWidth}px`,
-                                      width: `${column.maxWidth}px`,
-                                      display: "-webkit-box",
-                                      WebkitLineClamp: column.maxLines,
-                                      WebkitBoxOrient: "vertical",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "normal",
-                                      wordBreak: "break-word",
-                                      lineHeight: "1.4",
-                                      boxSizing: "border-box",
-                                    }
-                                    : column.maxWidth
-                                      ? {
-                                        // Chỉ maxWidth: giới hạn chiều rộng, không xuống dòng
-                                        maxWidth: `${column.maxWidth}px`,
-                                        width: `${column.maxWidth}px`,
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                        display: "block",
-                                        boxSizing: "border-box",
-                                      }
-                                      : column.maxLines
-                                        ? {
-                                          // Chỉ maxLines: giới hạn số dòng
-                                          display: "-webkit-box",
-                                          WebkitLineClamp: column.maxLines,
-                                          WebkitBoxOrient: "vertical",
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "normal",
-                                          wordBreak: "break-word",
-                                          lineHeight: "1.4",
-                                          width: "100%",
-                                          boxSizing: "border-box",
-                                        }
-                                        : {}),
-                                  cursor: "help",
-                                  width: "100%",
-                                }}
-                              >
-                                {row[column.id]}
-                              </Box>
-                            </Tooltip>
-                          ) : (
+                          }),
+                          ...(column.sticky === "left" && {
+                            borderLeft: "2px solid #e0e0e0 !important",
+                            backgroundColor: "#ffffff",
+                          }),
+                          ...((row.style as React.CSSProperties) || {}),
+                        }}
+                      >
+                        {column.id === "checkbox" ? (
+                          <Checkbox
+                            checked={isChecked}
+                            onChange={() => onToggleSelect?.(rowId)}
+                          />
+                        ) : column.id === "stt" ? (
+                          (internalPage - 1) * internalRowsPerPage + index + 1
+                        ) : column.maxWidth || column.maxLines ? (
+                          <Tooltip
+                            title={row[column.id] || ""}
+                            placement="top"
+                            arrow
+                            enterDelay={500}
+                            leaveDelay={200}
+                          >
                             <Box
                               sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                position: "relative",
+                                // Kết hợp maxWidth và maxLines - ưu tiên maxWidth trước
+                                ...(column.maxWidth && column.maxLines
+                                  ? {
+                                    // Cả hai thuộc tính: kết hợp hài hòa
+                                    maxWidth: `${column.maxWidth}px`,
+                                    width: `${column.maxWidth}px`,
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: column.maxLines,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                    lineHeight: "1.4",
+                                    boxSizing: "border-box",
+                                  }
+                                  : column.maxWidth
+                                    ? {
+                                      // Chỉ maxWidth: giới hạn chiều rộng, không xuống dòng
+                                      maxWidth: `${column.maxWidth}px`,
+                                      width: `${column.maxWidth}px`,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      display: "block",
+                                      boxSizing: "border-box",
+                                    }
+                                    : column.maxLines
+                                      ? {
+                                        // Chỉ maxLines: giới hạn số dòng
+                                        display: "-webkit-box",
+                                        WebkitLineClamp: column.maxLines,
+                                        WebkitBoxOrient: "vertical",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "normal",
+                                        wordBreak: "break-word",
+                                        lineHeight: "1.4",
+                                        width: "100%",
+                                        boxSizing: "border-box",
+                                      }
+                                      : {}),
+                                cursor: "help",
+                                width: "100%",
                               }}
                             >
-                              <span>{row[column.id]}</span>
-                              {onRowDoubleClick &&
-                                column.id === "nhiem_vu_trien_khai" && (
-                                  <Box
-                                    sx={{
-                                      ml: 1,
-                                      opacity: 0.4,
-                                      transition: "opacity 0.2s",
-                                      fontSize: "12px",
-                                      "&:hover": { opacity: 0.8 },
-                                    }}
-                                  >
-                                    👁️
-                                  </Box>
-                                )}
+                              {row[column.id]}
                             </Box>
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </Tooltip>
+                          </Tooltip>
+                        ) : (
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              position: "relative",
+                            }}
+                          >
+                            <span>{row[column.id]}</span>
+                            {onRowDoubleClick &&
+                              column.id === "nhiem_vu_trien_khai" && (
+                                <Box
+                                  sx={{
+                                    ml: 1,
+                                    opacity: 0.4,
+                                    transition: "opacity 0.2s",
+                                    fontSize: "12px",
+                                    "&:hover": { opacity: 0.8 },
+                                  }}
+                                >
+                                  👁️
+                                </Box>
+                              )}
+                          </Box>
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
                 );
-              })}
+              });
+            })()}
           </TableBody>
         </Table>
       </TableContainer>
@@ -531,7 +525,7 @@ export const TTable: React.FC<TTableProps> = ({
               fontSize: "13px",
             },
             "& .MuiTablePagination-actions": {
-              marginLeft: 0,
+              display: "none",
             },
             "& .MuiTablePagination-menuItem": {
               fontSize: "13px",
@@ -541,11 +535,11 @@ export const TTable: React.FC<TTableProps> = ({
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <IconButton
               onClick={handleFirstPage}
-              disabled={pageIndex === 1}
+              disabled={internalPage === 1 || !actualTotal}
               size="small"
               sx={{
                 color:
-                  pageIndex === 1
+                  internalPage === 1 || !actualTotal
                     ? "rgba(0, 0, 0, 0.26)"
                     : "rgba(0, 0, 0, 0.54)",
                 "&:hover": {
@@ -558,11 +552,11 @@ export const TTable: React.FC<TTableProps> = ({
             </IconButton>
             <IconButton
               onClick={handlePrevPage}
-              disabled={pageIndex === 1}
+              disabled={internalPage === 1 || !actualTotal}
               size="small"
               sx={{
                 color:
-                  pageIndex === 1
+                  internalPage === 1 || !actualTotal
                     ? "rgba(0, 0, 0, 0.26)"
                     : "rgba(0, 0, 0, 0.54)",
                 "&:hover": {
@@ -596,11 +590,11 @@ export const TTable: React.FC<TTableProps> = ({
             />
             <IconButton
               onClick={handleNextPage}
-              disabled={pageIndex === totalPages}
+              disabled={internalPage >= totalPages || !actualTotal}
               size="small"
               sx={{
                 color:
-                  pageIndex === totalPages
+                  internalPage >= totalPages || !actualTotal
                     ? "rgba(0, 0, 0, 0.26)"
                     : "rgba(0, 0, 0, 0.54)",
                 "&:hover": {
@@ -613,11 +607,11 @@ export const TTable: React.FC<TTableProps> = ({
             </IconButton>
             <IconButton
               onClick={handleLastPage}
-              disabled={pageIndex === totalPages}
+              disabled={internalPage >= totalPages || !actualTotal}
               size="small"
               sx={{
                 color:
-                  pageIndex === totalPages
+                  internalPage >= totalPages || !actualTotal
                     ? "rgba(0, 0, 0, 0.26)"
                     : "rgba(0, 0, 0, 0.54)",
                 "&:hover": {
@@ -633,9 +627,9 @@ export const TTable: React.FC<TTableProps> = ({
             <TablePagination
               rowsPerPageOptions={rowsPerPageOptions}
               component="div"
-              count={total}
-              rowsPerPage={pageSize}
-              page={pageIndex - 1}
+              count={actualTotal}
+              rowsPerPage={internalRowsPerPage}
+              page={internalPage - 1}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
               labelRowsPerPage="Số dòng:"

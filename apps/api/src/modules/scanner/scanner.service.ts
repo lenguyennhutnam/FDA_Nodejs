@@ -310,7 +310,7 @@ export class ScannerService implements OnModuleInit {
         
         let articleLine = '';
         if (r.news_kind === 'biendong') {
-          articleLine = `<b>- Bài viết ${articleIdx}: <a href="${r.url}">${r.title}</a> --- [${timeStr}] --- [${press}]</b>\n`;
+          articleLine = `- Bài viết ${articleIdx}: <a href="${r.url}">${r.title}</a> --- [${timeStr}] --- [${press}]\n`;
         } else {
           articleLine = `- Bài viết ${articleIdx}: <a href="${r.url}">${r.title}</a> --- [${timeStr}] --- [${press}]\n`;
         }

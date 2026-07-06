@@ -8,9 +8,10 @@ export function formatTimestamp(ts?: string): string {
 
 export const STATUS_META: Record<
   string,
-  { label: string; className: string }
+  { label: string; className: string; icon: string }
 > = {
-  change: { label: 'Đổi chức vụ', className: 'bg-amber-100 text-amber-800' },
-  stable_activity: { label: 'Có hoạt động', className: 'bg-emerald-100 text-emerald-800' },
-  no_data: { label: 'Chưa có tin', className: 'bg-gray-100 text-gray-500' },
+  change: { label: 'Đổi chức vụ', className: 'bg-amber-100 text-amber-800', icon: '⚠️' },
+  stable_activity: { label: 'Có hoạt động', className: 'bg-emerald-100 text-emerald-800', icon: '📝' },
+  hoatdong: { label: 'Có hoạt động', className: 'bg-emerald-100 text-emerald-800', icon: '📝' },
+  no_data: { label: 'Chưa có tin', className: 'bg-gray-100 text-gray-500', icon: '⚪' },
 };

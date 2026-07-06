@@ -31,4 +31,9 @@ export class NotificationsController {
   label(@Body() dto: LabelDto) {
     return this.notificationsService.label(dto.urls, dto.label ?? '');
   }
+
+  @Post('news-kind')
+  setNewsKind(@Body() dto: { url: string; target_name: string; kind: 'hoatdong' | 'biendong' }) {
+    return this.notificationsService.setNewsKind(dto.url, dto.target_name, dto.kind);
+  }
 }
